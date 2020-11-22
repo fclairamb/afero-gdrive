@@ -3,16 +3,19 @@ package gdriver
 import (
 	"errors"
 	"fmt"
+	"github.com/spf13/afero"
 	"io"
 	"net/http"
+	"os"
 	"path"
 	"strings"
+	"time"
 
 	drive "google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 )
 
-// GDriver can be used to access google drive in a traditional file-folder-path pattern
+// GDriver can be used to access google drive in a traditional File-folder-path pattern
 type GDriver struct {
 	srv      *drive.Service
 	rootNode *FileInfo
@@ -74,8 +77,16 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 	return driver, nil
 }
 
+func (d *GDriver) Name() string {
+	return "gdrive"
+}
+
+func (d *GDriver) AsAfero() afero.Fs {
+	return d
+}
+
 // SetRootDirectory changes the working root directory
-// use this if you want to do certian operations in a special directory
+// use this if you want to do certain operations in a special directory
 // path should always be the absolute real path
 func (d *GDriver) SetRootDirectory(path string) (*FileInfo, error) {
 	rootNode, err := getRootNode(d.srv)
@@ -94,24 +105,26 @@ func (d *GDriver) SetRootDirectory(path string) (*FileInfo, error) {
 	return file, nil
 }
 
-// Stat gives a FileInfo for a file or directory
-func (d *GDriver) Stat(path string) (*FileInfo, error) {
+// Stat gives a FileInfo for a File or directory
+func (d *GDriver) Stat(path string) (os.FileInfo, error) {
 	return d.getFile(d.rootNode, path, listFields...)
 }
 
-// ListDirectory will get all contents of a directory, calling fileFunc with the collected file information
-func (d *GDriver) ListDirectory(path string, fileFunc func(*FileInfo) error) error {
+// ListDirectory will get all contents of a directory, calling fileFunc with the collected File information
+func (d *GDriver) ListDirectory(path string, count int) ([]os.FileInfo, error) {
 	file, err := d.getFile(d.rootNode, path, "files(id,name,mimeType)")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !file.IsDir() {
-		return FileIsNotDirectoryError{Path: path}
+		return nil, FileIsNotDirectoryError{Path: path}
 	}
 	var pageToken string
 
+	files := make([]os.FileInfo, 0)
+
 	for {
-		call := d.srv.Files.List().Q(fmt.Sprintf("'%s' in parents and trashed = false", file.item.Id)).Fields(append(listFields, "nextPageToken")...)
+		call := d.srv.Files.List().Q(fmt.Sprintf("'%s' in parents and trashed = false", file.file.Id)).Fields(append(listFields, "nextPageToken")...)
 
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
@@ -119,51 +132,54 @@ func (d *GDriver) ListDirectory(path string, fileFunc func(*FileInfo) error) err
 
 		descendants, err := call.Do()
 		if err != nil {
-			return err
+			return files, err
 		}
 
 		if descendants == nil {
-			return fmt.Errorf("no file information present (in `%s')", path)
+			return nil, fmt.Errorf("no File information present (in `%s')", path)
 		}
 
 		for i := 0; i < len(descendants.Files); i++ {
-			if err = fileFunc(&FileInfo{
-				item:       descendants.Files[i],
+			files = append(files, &FileInfo{
+				file:       descendants.Files[i],
 				parentPath: file.Path(),
-			}); err != nil {
-				return CallbackError{NestedError: err}
-			}
+			})
 		}
 
 		if pageToken = descendants.NextPageToken; pageToken == "" {
 			break
 		}
 	}
-	return nil
+	return files, nil
 }
 
 // MakeDirectory creates a directory for the specified path, it will create non existent directores automatically
 //
 // Examples:
 //     MakeDirectory("Pictures/Holidays") // will create Pictures and Holidays
-func (d *GDriver) MakeDirectory(path string) (*FileInfo, error) {
-	return d.makeDirectoryByParts(strings.FieldsFunc(path, isPathSeperator))
+func (d *GDriver) Mkdir(path string, perm os.FileMode) error {
+	return d.MkdirAll(path, perm)
+}
+
+func (d *GDriver) MkdirAll(path string, _ os.FileMode) error {
+	_, err := d.makeDirectoryByParts(strings.FieldsFunc(path, isPathSeperator))
+	return err
 }
 
 func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 	parentNode := d.rootNode
 	for i := 0; i < len(pathParts); i++ {
-		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", parentNode.item.Id, sanitizeName(pathParts[i]))
+		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", parentNode.file.Id, sanitizeName(pathParts[i]))
 		files, err := d.srv.Files.List().Q(query).Fields(listFields...).Do()
 		if err != nil {
 			return nil, err
 		}
 		if files == nil {
-			return nil, fmt.Errorf("no file information present (in `%s')", path.Join(pathParts[:i+1]...))
+			return nil, fmt.Errorf("no File information present (in `%s')", path.Join(pathParts[:i+1]...))
 		}
 
 		if len(files.Files) <= 0 {
-			// file not found => create directory
+			// File not found => create directory
 			if !parentNode.IsDir() {
 				return nil, fmt.Errorf("unable to create directory in `%s': `%s' is not a directory", path.Join(pathParts[:i]...), parentNode.Name())
 			}
@@ -172,21 +188,21 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 				Name:     sanitizeName(pathParts[i]),
 				MimeType: mimeTypeFolder,
 				Parents: []string{
-					parentNode.item.Id,
+					parentNode.file.Id,
 				},
 			}).Fields(fileInfoFields...).Do()
 			if err != nil {
 				return nil, err
 			}
 			parentNode = &FileInfo{
-				item:       createdDir,
+				file:       createdDir,
 				parentPath: path.Join(pathParts[:i]...),
 			}
 		} else if len(files.Files) > 1 {
 			return nil, fmt.Errorf("multiple entries found for `%s'", path.Join(pathParts[:i+1]...))
 		} else { // if len(files.Files) == 1
 			parentNode = &FileInfo{
-				item:       files.Files[0],
+				file:       files.Files[0],
 				parentPath: path.Join(pathParts[:i]...),
 			}
 		}
@@ -207,11 +223,11 @@ func (d *GDriver) DeleteDirectory(path string) error {
 	if file == d.rootNode {
 		return errors.New("root cannot be deleted")
 	}
-	return d.srv.Files.Delete(file.item.Id).Do()
+	return d.srv.Files.Delete(file.file.Id).Do()
 }
 
-// Delete will delete a file or directory, if directory it will also delete its descendants
-func (d *GDriver) Delete(path string) error {
+// RemoveAll will delete a File or directory, if directory it will also delete its descendants
+func (d *GDriver) RemoveAll(path string) error {
 	file, err := d.getFile(d.rootNode, path)
 	if err != nil {
 		return err
@@ -219,10 +235,14 @@ func (d *GDriver) Delete(path string) error {
 	if file == d.rootNode {
 		return errors.New("root cannot be deleted")
 	}
-	return d.srv.Files.Delete(file.item.Id).Do()
+	return d.srv.Files.Delete(file.file.Id).Do()
 }
 
-// GetFile gets a file and returns a ReadCloser that can consume the body of the file
+func (d *GDriver) Remove(path string) error {
+	return d.RemoveAll(path)
+}
+
+// GetFile gets a File and returns a ReadCloser that can consume the body of the File
 func (d *GDriver) GetFile(path string) (*FileInfo, io.ReadCloser, error) {
 	file, err := d.getFile(d.rootNode, path, listFields...)
 	if err != nil {
@@ -232,7 +252,7 @@ func (d *GDriver) GetFile(path string) (*FileInfo, io.ReadCloser, error) {
 		return nil, nil, FileIsDirectoryError{Path: path}
 	}
 
-	response, err := d.srv.Files.Get(file.item.Id).Download()
+	response, err := d.srv.Files.Get(file.file.Id).Download()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -240,7 +260,7 @@ func (d *GDriver) GetFile(path string) (*FileInfo, io.ReadCloser, error) {
 	return file, response.Body, nil
 }
 
-// GetFileHash returns the hash of a file with the present method
+// GetFileHash returns the hash of a File with the present method
 func (d *GDriver) GetFileHash(path string, method HashMethod) (*FileInfo, []byte, error) {
 	switch method {
 	case HashMethodMD5:
@@ -255,10 +275,10 @@ func (d *GDriver) GetFileHash(path string, method HashMethod) (*FileInfo, []byte
 		return nil, nil, FileIsDirectoryError{Path: path}
 	}
 
-	return file, []byte(file.item.Md5Checksum), nil
+	return file, []byte(file.file.Md5Checksum), nil
 }
 
-// PutFile uploads a file to the specified path
+// PutFile uploads a File to the specified path
 // it creates non existing directories
 func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
@@ -267,7 +287,7 @@ func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
 		return nil, errors.New("path cannot be empty")
 	}
 
-	// check if there is already a file
+	// check if there is already a File
 	existentFile, err := d.getFileByParts(d.rootNode, pathParts, listFields...)
 	if err != nil {
 		if !IsNotExist(err) {
@@ -280,16 +300,16 @@ func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
 		return nil, errors.New("root cannot be uploaded")
 	}
 
-	// we found a file, just update this file
+	// we found a File, just update this File
 	if existentFile != nil {
-		if err = d.updateFileContents(existentFile.item.Id, r); err != nil {
+		if err = d.updateFileContents(existentFile.file.Id, r); err != nil {
 			return nil, err
 		}
 
 		return existentFile, nil
 	}
 
-	// create a new file
+	// create a new File
 	parentNode := d.rootNode
 	if amountOfParts > 1 {
 		dir, err := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
@@ -299,7 +319,7 @@ func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
 		parentNode = dir
 
 		if !parentNode.IsDir() {
-			return nil, fmt.Errorf("unable to create file in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			return nil, fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
 		}
 	}
 
@@ -308,7 +328,7 @@ func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
 			Name:     sanitizeName(pathParts[amountOfParts-1]),
 			MimeType: mimeTypeFile,
 			Parents: []string{
-				parentNode.item.Id,
+				parentNode.file.Id,
 			},
 		},
 	).Fields(fileInfoFields...).Media(r).Do()
@@ -316,13 +336,13 @@ func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
 		return nil, err
 	}
 	return &FileInfo{
-		item:       file,
+		file:       file,
 		parentPath: path.Join(pathParts[:amountOfParts-1]...),
 	}, nil
 }
 
 func (d *GDriver) updateFileContents(id string, r io.Reader) error {
-	// update file
+	// update File
 	_, err := d.srv.Files.Update(id, nil).Fields(fileInfoFields...).Media(r).Do()
 	if err != nil {
 		return err
@@ -330,32 +350,35 @@ func (d *GDriver) updateFileContents(id string, r io.Reader) error {
 	return nil
 }
 
-// Rename renames a file or directory to a new name in the same folder
-func (d *GDriver) Rename(path string, newName string) (*FileInfo, error) {
+/*
+func (d *GDriver) Rename(oldname, newname string) error {
+	panic("implement me")
+}
+*/
+
+// Rename renames a File or directory to a new name in the same folder
+func (d *GDriver) Rename(path string, newName string) error {
 	newNameParts := strings.FieldsFunc(newName, isPathSeperator)
 	amountOfParts := len(newNameParts)
 	if amountOfParts <= 0 {
-		return nil, errors.New("new name cannot be empty")
+		return errors.New("new name cannot be empty")
 	}
 	file, err := d.getFile(d.rootNode, path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if file == d.rootNode {
-		return nil, errors.New("root cannot be renamed")
+		return errors.New("root cannot be renamed")
 	}
 
-	newFile, err := d.srv.Files.Update(file.item.Id, &drive.File{
+	_, err = d.srv.Files.Update(file.file.Id, &drive.File{
 		Name: sanitizeName(newNameParts[amountOfParts-1]),
 	}).Fields(fileInfoFields...).Do()
-	return &FileInfo{
-		item:       newFile,
-		parentPath: file.parentPath,
-	}, nil
+	return err
 }
 
-// Move moves a file or directory to a new path, note that move also renames the target if necessary and creates non existing directories
+// Move moves a File or directory to a new path, note that move also renames the target if necessary and creates non existing directories
 //
 // Examples:
 //     Move("Folder1/File1", "Folder2/File2") // File1 in Folder1 will be moved to Folder2/File2
@@ -385,26 +408,26 @@ func (d *GDriver) Move(oldPath, newPath string) (*FileInfo, error) {
 		parentNode = dir
 
 		if !parentNode.IsDir() {
-			return nil, fmt.Errorf("unable to create file in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			return nil, fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
 		}
 	}
 
-	newFile, err := d.srv.Files.Update(file.item.Id, &drive.File{
+	newFile, err := d.srv.Files.Update(file.file.Id, &drive.File{
 		Name: sanitizeName(pathParts[amountOfParts-1]),
 	}).
-		AddParents(parentNode.item.Id).
-		RemoveParents(path.Join(file.item.Parents...)).
+		AddParents(parentNode.file.Id).
+		RemoveParents(path.Join(file.file.Parents...)).
 		Fields(fileInfoFields...).Do()
 	if err != nil {
 		return nil, err
 	}
 	return &FileInfo{
-		item:       newFile,
+		file:       newFile,
 		parentPath: path.Join(pathParts[:amountOfParts-1]...),
 	}, nil
 }
 
-// Trash trashes a file or directory
+// Trash trashes a File or directory
 func (d *GDriver) Trash(path string) error {
 	file, err := d.getFile(d.rootNode, path, "files(id)")
 	if err != nil {
@@ -415,7 +438,7 @@ func (d *GDriver) Trash(path string) error {
 		return errors.New("root cannot be trashed")
 	}
 
-	_, err = d.srv.Files.Update(file.item.Id, &drive.File{
+	_, err = d.srv.Files.Update(file.file.Id, &drive.File{
 		Trashed: true,
 	}).Do()
 	return err
@@ -435,16 +458,16 @@ func (d *GDriver) ListTrash(filePath string, fileFunc func(f *FileInfo) error) e
 	}
 
 	for i := 0; i < len(files.Files); i++ {
-		// determinate the parent of this file
+		// determinate the parent of this File
 
-		inRoot, parentPath, err := isInRoot(d.srv, file.item.Id, files.Files[i], "")
+		inRoot, parentPath, err := isInRoot(d.srv, file.file.Id, files.Files[i], "")
 		if err != nil {
 			return err
 		}
 
 		if inRoot {
 			if err = fileFunc(&FileInfo{
-				item:       files.Files[i],
+				file:       files.Files[i],
 				parentPath: path.Join(file.Path(), parentPath),
 			}); err != nil {
 				return CallbackError{NestedError: err}
@@ -460,12 +483,12 @@ func getRootNode(srv *drive.Service) (*FileInfo, error) {
 		return nil, err
 	}
 	return &FileInfo{
-		item:       root,
+		file:       root,
 		parentPath: "",
 	}, nil
 }
 
-// isInRoot checks if a file is a descendant of root, if so it will return the parent path of the file
+// isInRoot checks if a File is a descendant of root, if so it will return the parent path of the File
 func isInRoot(srv *drive.Service, rootID string, file *drive.File, basePath string) (bool, string, error) {
 	for _, parentID := range file.Parents {
 		if parentID == rootID {
@@ -494,7 +517,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 		return rootNode, nil
 	}
 
-	lastID := rootNode.item.Id
+	lastID := rootNode.file.Id
 	lastPart := amountOfParts - 1
 	var lastFile *drive.File
 	for i := 0; i < amountOfParts; i++ {
@@ -528,24 +551,31 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 	}
 
 	return &FileInfo{
-		item:       lastFile,
+		file:       lastFile,
 		parentPath: path.Join(pathParts[:amountOfParts-1]...),
 	}, nil
 }
 
-type OpenFlag int
+// Open a File for reading.
+func (d *GDriver) Open(name string) (afero.File, error) {
+	/*
+		if _, err := fs.Stat(name); err != nil {
+			return nil, err
+		}
+	*/
+	return d.OpenFile(name, os.O_RDONLY, 0777)
+}
 
-const (
-	O_RDONLY OpenFlag = 1 << iota
-	O_WRONLY OpenFlag = 1 << iota
-	O_CREATE OpenFlag = 1 << iota
-)
-
-// Open opens a file in the traditional os.Open way
-func (d *GDriver) Open(path string, flag OpenFlag) (File, error) {
+// OpenFile opens a File in the traditional os.Open way
+func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File, error) {
 	// plausibility check
-	if flag&O_RDONLY != 0 && flag&O_WRONLY != 0 {
-		return nil, errors.New("unable to open a file read and write at the same time")
+	/*
+		if flag&os.O_RDONLY != 0 && flag&os.O_WRONLY != 0 {
+			return nil, errors.New("unable to open a File read and write at the same time")
+		}
+	*/
+	if flag&os.O_RDWR != 0 {
+		return nil, errors.New("read and write not supported")
 	}
 
 	// determinate existent status
@@ -563,39 +593,59 @@ func (d *GDriver) Open(path string, flag OpenFlag) (File, error) {
 		return nil, err
 	}
 
-	// if we are not allowed to create a file
-	// and the file does not exist, fail
-	if flag&O_CREATE == 0 {
+	// if we are not allowed to create a File
+	// and the File does not exist, fail
+	if flag&os.O_CREATE == 0 {
 		if !fileExists {
 			return nil, FileNotExistError{Path: path}
 		}
 	}
 
-	if flag&O_RDONLY != 0 {
-		// file must exist
+	if flag&os.O_WRONLY == 0 {
+		// File must exist
 		if !fileExists {
 			return nil, FileNotExistError{Path: path}
 		}
-		return &readFile{
+		return &File{
 			Driver:   d,
 			FileInfo: file,
 		}, nil
 	}
 
-	if flag&O_WRONLY != 0 {
-		// file can exist
+	if flag&os.O_WRONLY != 0 {
+		// File can exist
 		if !fileExists {
-			// if file not exists, and we can not create the file
-			if flag&O_CREATE == 0 {
+			// if File not exists, and we can not create the File
+			if flag&os.O_CREATE == 0 {
 				return nil, FileNotExistError{Path: path}
 			}
 		}
-		// file exists
-		return &writeFile{
+		// File exists
+		return &File{
+			write:    true,
 			Driver:   d,
 			Path:     path,
 			FileInfo: file,
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown flag: %d", flag)
+}
+
+func (d *GDriver) Create(name string) (afero.File, error) {
+	file, err := d.OpenFile(name, os.O_CREATE, 0777)
+	if err != nil {
+		return nil, err
+	}
+	if _, errWrite := file.Write([]byte{}); errWrite != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+func (d *GDriver) Chmod(string, os.FileMode) error {
+	return nil
+}
+
+func (d *GDriver) Chtimes(string, time.Time, time.Time) error {
+	return nil
 }

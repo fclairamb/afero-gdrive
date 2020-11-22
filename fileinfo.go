@@ -1,65 +1,72 @@
 package gdriver
 
 import (
-	"fmt"
+	"os"
 	"path"
 	"time"
 
 	drive "google.golang.org/api/drive/v3"
 )
 
-// FileInfo represents file information for a file or directory
+const MIME_FOLDER = "application/vnd.google-apps.folder"
+
+// FileInfo represents File information for a File or directory
 type FileInfo struct {
-	item       *drive.File
+	file       *drive.File
 	parentPath string
 }
 
-// Name returns the name of the file or directory
-func (i *FileInfo) Name() string {
-	return sanitizeName(i.item.Name)
+func (i *FileInfo) Mode() os.FileMode {
+	mode := os.FileMode(0666)
+	if i.file.MimeType == MIME_FOLDER {
+		mode |= os.ModeDir
+	}
+	return mode
 }
 
-// ParentPath returns the parent path of the file or directory
+func (i *FileInfo) ModTime() time.Time {
+	modifiedTime, _ := time.Parse(time.RFC3339, i.file.ModifiedTime)
+	return modifiedTime
+}
+
+// CreationTime returns the time when this File was created
+func (i *FileInfo) CreateTime() time.Time {
+	t, _ := time.Parse(time.RFC3339, i.file.CreatedTime)
+	return t
+}
+
+func (i *FileInfo) Sys() interface{} {
+	return nil
+}
+
+// Name returns the name of the File or directory
+func (i *FileInfo) Name() string {
+	return sanitizeName(i.file.Name)
+}
+
+// ParentPath returns the parent path of the File or directory
 func (i *FileInfo) ParentPath() string {
 	return i.parentPath
 }
 
-// Path returns the full path to this file or directory
+// Path returns the full path to this File or directory
 func (i *FileInfo) Path() string {
 	return path.Join(i.parentPath, i.Name())
 }
 
-// Size returns the bytes for this file
+// Size returns the bytes for this File
 func (i *FileInfo) Size() int64 {
-	return i.item.Size
+	return i.file.Size
 }
 
-// CreationTime returns the time when this file was created
-func (i *FileInfo) CreationTime() time.Time {
-	t, err := time.Parse(time.RFC3339, i.item.CreatedTime)
-	if err != nil {
-		panic(fmt.Errorf("unable to parse CreatedTime (`%s'): %v", i.item.CreatedTime, err))
-	}
-	return t
-}
-
-// ModifiedTime returns the time when this file was modified
-func (i *FileInfo) ModifiedTime() time.Time {
-	t, err := time.Parse(time.RFC3339, i.item.ModifiedTime)
-	if err != nil {
-		panic(fmt.Errorf("unable to parse ModifiedTime (`%s'): %v", i.item.ModifiedTime, err))
-	}
-	return t
-}
-
-// IsDir returns true if this file is a directory
+// IsDir returns true if this File is a directory
 func (i *FileInfo) IsDir() bool {
-	return i.item.MimeType == mimeTypeFolder
+	return i.file.MimeType == mimeTypeFolder
 }
 
 // DriveFile returns the underlaying drive.File
 func (i *FileInfo) DriveFile() *drive.File {
-	return i.item
+	return i.file
 }
 
 func sanitizeName(s string) string {

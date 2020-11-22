@@ -6,17 +6,17 @@ import (
 	"log"
 	"os"
 
-	"github.com/Eun/gdriver"
-	"github.com/Eun/gdriver/oauthhelper"
+	gdriver "github.com/fclairamb/afero-gdrive"
+	"github.com/fclairamb/afero-gdrive/oauthhelper"
 )
 
 func main() {
 	// Setup OAuth
 	helper := oauthhelper.Auth{
-		ClientID:     "ClientID",
-		ClientSecret: "ClientSecret",
+		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Authenticate: func(url string) (string, error) {
-			fmt.Printf("Open to authorize Example to access your drive\n%s\n", url)
+			fmt.Printf("OpenFile to authorize Example to access your drive\n%s\n", url)
 
 			var code string
 			fmt.Printf("Code: ")
@@ -55,10 +55,15 @@ func main() {
 		log.Panic(err)
 	}
 
-	err = gdrive.ListDirectory("/", func(info *gdriver.FileInfo) error {
-		fmt.Printf("%s\t%d\t%s", info.Name(), info.Size(), info.ModifiedTime().String())
-		return nil
-	})
+	files, err := gdrive.ListDirectory("/", 2000)
+
+	for _, f := range files {
+		fmt.Printf("%s\t%d\t%s", f.Name(), f.Size(), f.ModTime())
+	}
+
+	f, _ := os.Open("example")
+	gdrive.PutFile("bins/example", f)
+
 	if err != nil {
 		log.Panic(err)
 	}

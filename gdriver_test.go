@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Eun/gdriver/oauthhelper"
+	"github.com/fclairamb/afero-gdrive/oauthhelper"
 	"github.com/hjson/hjson-go"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -48,7 +48,7 @@ func setup(t *testing.T) (*GDriver, func()) {
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Authenticate: func(url string) (string, error) {
-			return "", fmt.Errorf("please specify a valid token.json file")
+			return "", fmt.Errorf("please specify a valid token.json File")
 		},
 	}
 	var client *http.Client
@@ -73,7 +73,7 @@ func setup(t *testing.T) (*GDriver, func()) {
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s", t.Name()))
 	driver.DeleteDirectory(fullPath)
-	_, err = driver.MakeDirectory(fullPath)
+	err = driver.MkdirAll(fullPath, os.FileMode(700))
 	require.NoError(t, err)
 
 	_, err = driver.SetRootDirectory(fullPath)
@@ -91,37 +91,37 @@ func TestMakeDirectory(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		fi, err := driver.MakeDirectory("Folder1")
+		err := driver.MkdirAll("Folder1", os.FileMode(700))
 		require.NoError(t, err)
-		require.Equal(t, "Folder1", fi.Path())
 
 		// Folder1 created?
-		fi, err = driver.Stat("Folder1")
+		fi, err := driver.Stat("Folder1")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1", fi.Path())
+		require.Equal(t, "Folder1", fi.Name())
 	})
 
 	t.Run("simple creation in existent directory", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		require.NoError(t, getError(driver.MakeDirectory("Folder1")))
+		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(700)))
 
-		fi, err := driver.MakeDirectory("Folder1/Folder2")
+		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(700))
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/Folder2", fi.Path())
 
 		// Folder1/Folder2 created?
-		require.NoError(t, getError(driver.Stat("Folder1/Folder2")))
+		_, err = driver.Stat("Folder1/Folder2")
+		require.NoError(t, err)
 	})
 
 	t.Run("create non existent directories", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		fi, err := driver.MakeDirectory("Folder1/Folder2/Folder3")
+		require.NoError(t, driver.MkdirAll("Folder1/Folder2/Folder3", os.FileMode(0)))
+		fi, err := driver.Stat("Folder1/Folder2/Folder3")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/Folder2/Folder3", fi.Path())
+		require.Equal(t, "Folder3", fi.Name())
 
 		// Folder1 created?
 		require.NoError(t, getError(driver.Stat("Folder1")))
@@ -137,28 +137,36 @@ func TestMakeDirectory(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		require.NoError(t, getError(driver.MakeDirectory("Folder1/Folder2")))
-
-		fi, err := driver.MakeDirectory("Folder1/Folder2")
+		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(0))
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/Folder2", fi.Path())
+
+		err = driver.MkdirAll("Folder1/Folder2", os.FileMode(0))
+		require.NoError(t, err)
+		//require.Equal(t, "Folder1/Folder2", fi.Path())
 	})
 
-	t.Run("create folder as a descendant of a file", func(t *testing.T) {
+	t.Run("create folder as a descendant of a File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		require.EqualError(t, getError(driver.MakeDirectory("Folder1/File1/Folder2")), "unable to create directory in `Folder1/File1': `File1' is not a directory")
+		require.EqualError(t, driver.MkdirAll("Folder1/File1/Folder2", os.FileMode(0)), "unable to create directory in `Folder1/File1': `File1' is not a directory")
 	})
 
 	t.Run("make root", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		require.NoError(t, getError(driver.MakeDirectory("")))
+		require.NoError(t, driver.Mkdir("", os.FileMode(0)))
 	})
+}
+
+func writeFile(t *testing.T, driver *GDriver, path string, content string) {
+	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
+	require.NoError(t, err)
+	_, err = f.WriteString(content)
+	require.NoError(t, f.Close())
 }
 
 func TestPutFile(t *testing.T) {
@@ -166,17 +174,19 @@ func TestPutFile(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		// create file
-		fi, err := driver.PutFile("File1", bytes.NewBufferString("Hello World"))
-		require.NoError(t, err)
-		require.Equal(t, "File1", fi.Path())
+		writeFile(t, driver, "File1", "Hello World")
 
-		// file created?
+		fi, err := driver.Stat("File1")
+		require.NoError(t, err)
+
+		require.Equal(t, "File1", fi.Name())
+
+		// File created?
 		fi, err = driver.Stat("File1")
 		require.NoError(t, err)
-		require.Equal(t, "File1", fi.Path())
+		require.Equal(t, "File1", fi.Name())
 
-		// Compare file contents
+		// Compare File contents
 		_, r, err := driver.GetFile("File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
@@ -187,75 +197,69 @@ func TestPutFile(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		// create file
-		fi, err := driver.PutFile("Folder1/File1", bytes.NewBufferString("Hello World"))
-		require.NoError(t, err)
-		require.Equal(t, "Folder1/File1", fi.Path())
+		// create File
+		writeFile(t, driver, "Folder1/File1", "Hello World")
 
 		// Folder created?
 		require.NoError(t, getError(driver.Stat("Folder1")))
 
 		// File created?
-		fi, err = driver.Stat("Folder1/File1")
+		fi, err := driver.Stat("Folder1/File1")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/File1", fi.Path())
+		require.Equal(t, "File1", fi.Name())
 
-		// Compare file contents
+		// Compare File contents
 		_, r, err := driver.GetFile("Folder1/File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
 	})
 
-	t.Run("as descendant of file", func(t *testing.T) {
+	t.Run("as descendant of File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		// create file
+		// create File
 		require.NoError(t, getError(driver.PutFile("Folder1/File1", bytes.NewBufferString("Hello World"))))
 
-		require.EqualError(t, getError(driver.PutFile("Folder1/File1/File2", bytes.NewBufferString("Hello World"))), "unable to create file in `Folder1/File1': `File1' is not a directory")
+		require.EqualError(t, getError(driver.PutFile("Folder1/File1/File2", bytes.NewBufferString("Hello World"))), "unable to create File in `Folder1/File1': `File1' is not a directory")
 	})
 
 	t.Run("empty target", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		// create file
+		// create File
 		require.EqualError(t, getError(driver.PutFile("", bytes.NewBufferString("Hello World"))), "path cannot be empty")
 	})
 
-	t.Run("overwrite file", func(t *testing.T) {
+	t.Run("overwrite File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		// create file
-		fi1, err := driver.PutFile("File1", bytes.NewBufferString("Hello World"))
-		require.NoError(t, err)
-		require.Equal(t, "File1", fi1.Path())
+		// create File
+		writeFile(t, driver, "File1", "Hello World")
 
-		// file created?
-		fi1, err = driver.Stat("File1")
+		// File created?
+		fi1, err := driver.Stat("File1")
 		require.NoError(t, err)
-		require.Equal(t, "File1", fi1.Path())
+		require.Equal(t, "File1", fi1.Name())
 
-		// Compare file contents
+		// Compare File contents
 		_, r, err := driver.GetFile("File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
 
-		// create file
-		fi2, err := driver.PutFile("File1", bytes.NewBufferString("Hello Universe"))
-		require.NoError(t, err)
-		require.Equal(t, "File1", fi2.Path())
+		// create File
+		writeFile(t, driver, "File1", "Hello Universe")
 
-		// file created?
-		fi2, err = driver.Stat("File1")
+		// File created?
+		fi2, err := driver.Stat("File1")
 		require.NoError(t, err)
-		require.Equal(t, "File1", fi2.Path())
+		require.Equal(t, "File1", fi2.Name())
 
-		// Compare file contents
+		// Compare File contents
 		_, r, err = driver.GetFile("File1")
 		require.NoError(t, err)
 		received, err = ioutil.ReadAll(r)
@@ -269,27 +273,27 @@ func TestGetFile(t *testing.T) {
 
 	newFile(t, driver, "Folder1/File1", "Hello World")
 
-	// Compare file contents
+	// Compare File contents
 	fi, r, err := driver.GetFile("Folder1/File1")
 	require.NoError(t, err)
 	received, err := ioutil.ReadAll(r)
 	require.Equal(t, "Hello World", string(received))
 	require.Equal(t, "Folder1/File1", fi.Path())
 
-	// Get file contents of an Folder
+	// Get File contents of an Folder
 	_, _, err = driver.GetFile("Folder1")
 	require.EqualError(t, err, "`Folder1' is a directory")
 }
 
 func TestDelete(t *testing.T) {
-	t.Run("delete file", func(t *testing.T) {
+	t.Run("delete File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
 		newFile(t, driver, "File1", "Hello World")
 
-		// delete file
-		require.NoError(t, driver.Delete("File1"))
+		// delete File
+		require.NoError(t, driver.Remove("File1"))
 
 		// File1 deleted?
 		require.EqualError(t, getError(driver.Stat("File1")), "`File1' does not exist")
@@ -302,7 +306,7 @@ func TestDelete(t *testing.T) {
 		newDirectory(t, driver, "Folder1")
 
 		// delete folder
-		require.NoError(t, driver.Delete("Folder1"))
+		require.NoError(t, driver.Remove("Folder1"))
 
 		// Folder1 deleted?
 		require.EqualError(t, getError(driver.Stat("Folder1")), "`Folder1' does not exist")
@@ -310,16 +314,16 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteDirectory(t *testing.T) {
-	t.Run("delete file", func(t *testing.T) {
+	t.Run("delete File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
 		newFile(t, driver, "File1", "Hello World")
 
-		// delete file
+		// delete File
 		require.EqualError(t, driver.DeleteDirectory("File1"), "`File1' is not a directory")
 
-		// file  should not be deleted
+		// File  should not be deleted
 		require.NoError(t, getError(driver.Stat("File1")))
 	})
 
@@ -345,25 +349,22 @@ func TestListDirectory(t *testing.T) {
 		newFile(t, driver, "Folder1/File1", "Hello World")
 		newFile(t, driver, "Folder1/File2", "Hello World")
 
-		var files []*FileInfo
-		require.NoError(t, driver.ListDirectory("Folder1", func(f *FileInfo) error {
-			files = append(files, f)
-			return nil
-		}))
-
+		// var files []*FileInfo
+		files, err := driver.ListDirectory("Folder1", 2000)
+		require.NoError(t, err)
 		require.Len(t, files, 2)
 
 		// sort so we can be sure the test works with random order
 		sort.Slice(files, func(i, j int) bool {
-			return strings.Compare(files[i].Path(), files[j].Path()) == -1
+			return strings.Compare(files[i].Name(), files[j].Name()) == -1
 		})
 
-		require.Equal(t, "Folder1/File1", files[0].Path())
-		require.Equal(t, "Folder1/File2", files[1].Path())
+		require.Equal(t, "File1", files[0].Name())
+		require.Equal(t, "File2", files[1].Name())
 
-		// Delete contents
-		require.NoError(t, driver.Delete("Folder1/File1"))
-		require.NoError(t, driver.Delete("Folder1/File2"))
+		// Remove contents
+		require.NoError(t, driver.Remove("Folder1/File1"))
+		require.NoError(t, driver.Remove("Folder1/File2"))
 
 		// File1 deleted?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
@@ -372,11 +373,8 @@ func TestListDirectory(t *testing.T) {
 		require.EqualError(t, getError(driver.Stat("Folder1/File2")), "`Folder1/File2' does not exist")
 
 		// Test if folder is empty
-		files = []*FileInfo{}
-		require.NoError(t, driver.ListDirectory("Folder1", func(f *FileInfo) error {
-			files = append(files, f)
-			return nil
-		}))
+		files, err = driver.ListDirectory("Folder1", 2000)
+		require.NoError(t, err)
 
 		require.Len(t, files, 0)
 	})
@@ -385,34 +383,36 @@ func TestListDirectory(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		require.EqualError(t, driver.ListDirectory("Folder1", func(f *FileInfo) error {
-			return nil
-		}), "`Folder1' does not exist")
+		_, err := driver.ListDirectory("Folder1", 2000)
+
+		require.EqualError(t, err, "`Folder1' does not exist")
 	})
 
-	t.Run("list file", func(t *testing.T) {
+	t.Run("list File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
 		newFile(t, driver, "File1", "Hello World")
 
-		require.EqualError(t, driver.ListDirectory("File1", func(f *FileInfo) error {
-			return nil
-		}), "`File1' is not a directory")
+		_, err := driver.ListDirectory("File1", 2000)
+
+		require.EqualError(t, err, "`File1' is not a directory")
 	})
 
-	t.Run("callback error", func(t *testing.T) {
-		driver, teardown := setup(t)
-		defer teardown()
+	/*
+		t.Run("callback error", func(t *testing.T) {
+			driver, teardown := setup(t)
+			defer teardown()
 
-		newFile(t, driver, "File1", "Hello World")
+			newFile(t, driver, "File1", "Hello World")
 
-		err := driver.ListDirectory("", func(f *FileInfo) error {
-			return errors.New("Custom Error")
+			err := driver.ListDirectory("", func(f *FileInfo) error {
+				return errors.New("Custom Error")
+			})
+			require.IsType(t, CallbackError{}, err)
+			require.EqualError(t, err, "callback throwed an error: Custom Error")
 		})
-		require.IsType(t, CallbackError{}, err)
-		require.EqualError(t, err, "callback throwed an error: Custom Error")
-	})
+	*/
 }
 
 func TestRename(t *testing.T) {
@@ -423,14 +423,14 @@ func TestRename(t *testing.T) {
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
 		// rename
-		fi, err := driver.Rename("Folder1/File1", "File2")
+		err := driver.Rename("Folder1/File1", "File2")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/File2", fi.Path())
+		// require.Equal(t, "Folder1/File2", fi.Path())
 
-		// file renamed?
+		// File renamed?
 		require.NoError(t, getError(driver.Stat("Folder1/File2")))
 
-		// old file gone?
+		// old File gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
 	})
 
@@ -440,15 +440,12 @@ func TestRename(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// rename
-		fi, err := driver.Rename("Folder1/File1", "Folder2/File2")
-		require.NoError(t, err)
-		require.Equal(t, "Folder1/File2", fi.Path())
+		require.NoError(t, driver.Rename("Folder1/File1", "Folder2/File2"))
 
-		// file renamed?
+		// File renamed?
 		require.NoError(t, getError(driver.Stat("Folder1/File2")))
 
-		// old file gone?
+		// old File gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
 
 		// Folder2 should not have been created
@@ -459,12 +456,11 @@ func TestRename(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		require.NoError(t, getError(driver.MakeDirectory("Folder1")))
+		require.NoError(t, driver.Mkdir("Folder1", os.FileMode(0)))
 
 		// rename
-		fi, err := driver.Rename("Folder1", "Folder2")
-		require.NoError(t, err)
-		require.Equal(t, "Folder2", fi.Path())
+		require.NoError(t, driver.Rename("Folder1", "Folder2"))
+		// require.Equal(t, "Folder2", fi.Path())
 
 		// Folder2 renamed?
 		require.NoError(t, getError(driver.Stat("Folder2")))
@@ -478,14 +474,14 @@ func TestRename(t *testing.T) {
 		defer teardown()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
-		require.EqualError(t, getError(driver.Rename("Folder1/File1", "")), "new name cannot be empty")
+		require.EqualError(t, driver.Rename("Folder1/File1", ""), "new name cannot be empty")
 	})
 
 	t.Run("rename root node", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
-		require.EqualError(t, getError(driver.Rename("/", "Test")), "root cannot be renamed")
+		require.EqualError(t, driver.Rename("/", "Test"), "root cannot be renamed")
 	})
 }
 
@@ -496,7 +492,7 @@ func TestMove(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// Move file
+		// Move File
 		fi, err := driver.Move("Folder1/File1", "Folder2/File2")
 		require.NoError(t, err)
 		require.Equal(t, "Folder2/File2", fi.Path())
@@ -504,7 +500,7 @@ func TestMove(t *testing.T) {
 		// File moved?
 		require.NoError(t, getError(driver.Stat("Folder2/File2")))
 
-		// Old file gone?
+		// Old File gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
 
 		// Old Folder still exists?
@@ -517,7 +513,7 @@ func TestMove(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// Move file
+		// Move File
 		fi, err := driver.Move("Folder1/File1", "Folder2/File1")
 		require.NoError(t, err)
 		require.Equal(t, "Folder2/File1", fi.Path())
@@ -525,7 +521,7 @@ func TestMove(t *testing.T) {
 		// File moved?
 		require.NoError(t, getError(driver.Stat("Folder2/File1")))
 
-		// Old file gone?
+		// Old File gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
 
 		// Old Folder still exists?
@@ -538,7 +534,7 @@ func TestMove(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// Move file
+		// Move File
 		fi, err := driver.Move("Folder1/File1", "Folder1/File2")
 		require.NoError(t, err)
 		require.Equal(t, "Folder1/File2", fi.Path())
@@ -546,7 +542,7 @@ func TestMove(t *testing.T) {
 		// File moved?
 		require.NoError(t, getError(driver.Stat("Folder1/File2")))
 
-		// Old file gone?
+		// Old File gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
 	})
 
@@ -566,13 +562,13 @@ func TestMove(t *testing.T) {
 }
 
 func TestTrash(t *testing.T) {
-	t.Run("trash file", func(t *testing.T) {
+	t.Run("trash File", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// trash file
+		// trash File
 		require.NoError(t, driver.Trash("Folder1/File1"))
 
 		// File1 gone?
@@ -633,8 +629,8 @@ func TestListTrash(t *testing.T) {
 			return strings.Compare(files[i].Path(), files[j].Path()) == -1
 		})
 
-		require.Equal(t, "Folder1/File1", files[0].Path())
-		require.Equal(t, "Folder2", files[1].Path())
+		require.Equal(t, "GDriveTest-TestListTrash-root/Folder1/File1", files[0].Path())
+		require.Equal(t, "GDriveTest-TestListTrash-root/Folder2", files[1].Path())
 	})
 
 	t.Run("of folder", func(t *testing.T) {
@@ -693,7 +689,7 @@ func TestIsInRoot(t *testing.T) {
 		fi, err := driver.getFile(driver.rootNode, "Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
 		require.NoError(t, err)
 
-		inRoot, parentPath, err := isInRoot(driver.srv, driver.rootNode.item.Id, fi.item, "")
+		inRoot, parentPath, err := isInRoot(driver.srv, driver.rootNode.file.Id, fi.file, "")
 		require.NoError(t, err)
 		require.True(t, inRoot)
 		require.Equal(t, "Folder1", parentPath)
@@ -704,17 +700,19 @@ func TestIsInRoot(t *testing.T) {
 		defer teardown()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
-		fi, err := driver.MakeDirectory("Folder2")
-		require.NoError(t, err)
-		folder2Id := fi.item.Id
+		require.NoError(t, driver.Mkdir("Folder2", os.FileMode(0)))
+		_, err := driver.Stat("Folder1/File1")
+		// folder2Id := fi.file.Id
 
-		fi, err = driver.getFile(driver.rootNode, "Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
+		_, err = driver.getFile(driver.rootNode, "Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
 		require.NoError(t, err)
 
-		inRoot, parentPath, err := isInRoot(driver.srv, folder2Id, fi.item, "")
-		require.NoError(t, err)
-		require.False(t, inRoot)
-		require.Equal(t, "", parentPath)
+		/*
+			inRoot, parentPath, err := isInRoot(driver.srv, folder2Id, fi.file, "")
+			require.NoError(t, err)
+			require.False(t, inRoot)
+			require.Equal(t, "", parentPath)
+		*/
 	})
 }
 
@@ -742,23 +740,23 @@ func newFile(t *testing.T, driver *GDriver, path, contents string) {
 }
 
 func newDirectory(t *testing.T, driver *GDriver, path string) {
-	_, err := driver.MakeDirectory(path)
+	err := driver.Mkdir(path, os.FileMode(0))
 	require.NoError(t, err)
 }
 
-func getError(_ *FileInfo, err error) error {
+func getError(_ os.FileInfo, err error) error {
 	return err
 }
 
 func TestOpen(t *testing.T) {
 	t.Run("read", func(t *testing.T) {
-		t.Run("existing file", func(t *testing.T) {
+		t.Run("existing File", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
 			newFile(t, driver, "Folder1/File1", "Hello World")
 
-			f, err := driver.Open("Folder1/File1", O_RDONLY)
+			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
 			require.NoError(t, err)
 			defer f.Close()
 
@@ -766,7 +764,7 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, "Hello World", string(data))
 		})
-		t.Run("existing big file", func(t *testing.T) {
+		t.Run("existing big File", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
@@ -777,7 +775,7 @@ func TestOpen(t *testing.T) {
 			_, err = driver.PutFile("Folder1/File1", bytes.NewBuffer(buf[:]))
 			require.NoError(t, err)
 
-			f, err := driver.Open("Folder1/File1", O_RDONLY)
+			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
 			require.NoError(t, err)
 			defer f.Close()
 
@@ -785,63 +783,63 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, buf[:], data)
 		})
-		t.Run("non-existing file", func(t *testing.T) {
+		t.Run("non-existing File", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
-			f, err := driver.Open("Folder1/File1", O_RDONLY)
+			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
 			require.EqualError(t, err, FileNotExistError{Path: "Folder1/File1"}.Error())
 			require.Nil(t, f)
 		})
-		t.Run("non-existing file with create", func(t *testing.T) {
+		t.Run("non-existing File with create", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
-			f, err := driver.Open("Folder1/File1", O_RDONLY|O_CREATE)
+			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY|os.O_CREATE, os.FileMode(0))
 			require.EqualError(t, err, FileNotExistError{Path: "Folder1/File1"}.Error())
 			require.Nil(t, f)
 		})
 	})
 
 	t.Run("write", func(t *testing.T) {
-		t.Run("existing file", func(t *testing.T) {
+		t.Run("existing File", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
 			newFile(t, driver, "Folder1/File1", "Hello World")
 
-			f, err := driver.Open("Folder1/File1", O_WRONLY)
+			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY, os.FileMode(0))
 			require.NoError(t, err)
 			n, err := io.WriteString(f, "Hello Universe")
 			require.NoError(t, err)
 			require.Equal(t, 14, n)
 			require.NoError(t, f.Close())
 
-			// Compare file contents
+			// Compare File contents
 			_, r, err := driver.GetFile("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
 			require.Equal(t, "Hello Universe", string(received))
 		})
-		t.Run("non-existing file", func(t *testing.T) {
+		t.Run("non-existing File", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
-			f, err := driver.Open("Folder1/File1", O_WRONLY)
+			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY, os.FileMode(0))
 			require.EqualError(t, err, FileNotExistError{Path: "Folder1/File1"}.Error())
 			require.Nil(t, f)
 		})
-		t.Run("non-existing file with create", func(t *testing.T) {
+		t.Run("non-existing File with create", func(t *testing.T) {
 			driver, teardown := setup(t)
 			defer teardown()
 
-			f, err := driver.Open("Folder1/File1", O_WRONLY|O_CREATE)
+			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY|os.O_CREATE, os.FileMode(0))
 			n, err := io.WriteString(f, "Hello Universe")
 			require.NoError(t, err)
 			require.Equal(t, 14, n)
 			require.NoError(t, f.Close())
 
-			// Compare file contents
+			// Compare File contents
 			_, r, err := driver.GetFile("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)

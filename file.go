@@ -102,7 +102,7 @@ func (f *File) getWriter() error {
 		f.doneChan = make(chan struct{})
 		go func() {
 			if f.FileInfo == nil {
-				f.FileInfo, f.putError = f.Driver.PutFile(f.Path, reader)
+				f.FileInfo, f.putError = f.Driver.putFile(f.Path, reader)
 			} else {
 				f.putError = f.Driver.updateFileContents(f.FileInfo.file.Id, reader)
 			}

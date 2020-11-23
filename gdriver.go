@@ -278,9 +278,9 @@ func (d *GDriver) GetFileHash(path string, method HashMethod) (*FileInfo, []byte
 	return file, []byte(file.file.Md5Checksum), nil
 }
 
-// PutFile uploads a File to the specified path
+// putFile uploads a File to the specified path
 // it creates non existing directories
-func (d *GDriver) PutFile(filePath string, r io.Reader) (*FileInfo, error) {
+func (d *GDriver) putFile(filePath string, r io.Reader) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
 	if amountOfParts <= 0 {
@@ -558,12 +558,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 
 // Open a File for reading.
 func (d *GDriver) Open(name string) (afero.File, error) {
-	/*
-		if _, err := fs.Stat(name); err != nil {
-			return nil, err
-		}
-	*/
-	return d.OpenFile(name, os.O_RDONLY, 0777)
+	return d.OpenFile(name, os.O_RDONLY, 0)
 }
 
 // OpenFile opens a File in the traditional os.Open way
@@ -574,6 +569,10 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 			return nil, errors.New("unable to open a File read and write at the same time")
 		}
 	*/
+	if path == "" {
+		errors.New("path cannot be empty")
+	}
+
 	if flag&os.O_RDWR != 0 {
 		return nil, errors.New("read and write not supported")
 	}

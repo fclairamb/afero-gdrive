@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -58,13 +59,20 @@ func main() {
 	files, err := gdrive.ListDirectory("/", 2000)
 
 	for _, f := range files {
-		fmt.Printf("%s\t%d\t%s", f.Name(), f.Size(), f.ModTime())
+		fmt.Printf("%s\t%d\t%s\n", f.Name(), f.Size(), f.ModTime())
 	}
 
-	f, _ := os.Open("example")
-	gdrive.PutFile("bins/example", f)
-
+	src, err := os.Open("example")
 	if err != nil {
+		log.Panic(err)
+	}
+	defer src.Close()
+	dst, err := gdrive.OpenFile("bins/example", os.O_WRONLY|os.O_CREATE, os.FileMode(755))
+	if err != nil {
+		log.Panic(err)
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, src); err != nil {
 		log.Panic(err)
 	}
 }

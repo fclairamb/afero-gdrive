@@ -216,7 +216,8 @@ func TestPutFile(t *testing.T) {
 		// create File
 		require.NoError(t, putFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
-		require.EqualError(t, putFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World")), "unable to create File in `Folder1/File1': `File1' is not a directory")
+		_, err := driver.putFile("Folder1/File1/File2", bytes.NewBufferString("Hello World"))
+		require.EqualError(t, err, "unable to create File in `Folder1/File1': `File1' is not a directory")
 	})
 
 	t.Run("empty target", func(t *testing.T) {
@@ -728,40 +729,6 @@ func TestGetHash(t *testing.T) {
 	require.EqualValues(t, hash1[:], hash2)
 }
 
-func writeFile(t *testing.T, driver *GDriver, path string, content string) {
-	require.NoError(t, putFile(driver, path, bytes.NewBufferString(content)))
-}
-
-func putFile(driver *GDriver, path string, content io.Reader) error {
-	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err = f.Close(); err != nil {
-			log.Println("Couldn't close file:", err)
-		}
-	}()
-	if _, err := io.Copy(f, content); err != nil {
-		return err
-	}
-	return nil
-}
-
-func newFile(t *testing.T, driver *GDriver, path, contents string) {
-	err := putFile(driver, path, bytes.NewBufferString(contents))
-	require.NoError(t, err)
-}
-
-func newDirectory(t *testing.T, driver *GDriver, path string) {
-	err := driver.Mkdir(path, os.FileMode(0))
-	require.NoError(t, err)
-}
-
-func getError(_ os.FileInfo, err error) error {
-	return err
-}
-
 func TestOpen(t *testing.T) {
 	t.Run("read", func(t *testing.T) {
 		t.Run("existing File", func(t *testing.T) {
@@ -860,4 +827,38 @@ func TestOpen(t *testing.T) {
 			require.Equal(t, "Hello Universe", string(received))
 		})
 	})
+}
+
+func writeFile(t *testing.T, driver *GDriver, path string, content string) {
+	require.NoError(t, putFile(driver, path, bytes.NewBufferString(content)))
+}
+
+func putFile(driver *GDriver, path string, content io.Reader) error {
+	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err = f.Close(); err != nil {
+			log.Println("Couldn't close file:", err)
+		}
+	}()
+	if _, err := io.Copy(f, content); err != nil {
+		return err
+	}
+	return nil
+}
+
+func newFile(t *testing.T, driver *GDriver, path, contents string) {
+	err := putFile(driver, path, bytes.NewBufferString(contents))
+	require.NoError(t, err)
+}
+
+func newDirectory(t *testing.T, driver *GDriver, path string) {
+	err := driver.Mkdir(path, os.FileMode(0))
+	require.NoError(t, err)
+}
+
+func getError(_ os.FileInfo, err error) error {
+	return err
 }

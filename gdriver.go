@@ -570,7 +570,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 		}
 	*/
 	if path == "" {
-		errors.New("path cannot be empty")
+		return nil, errors.New("path cannot be empty")
 	}
 
 	if flag&os.O_RDWR != 0 {

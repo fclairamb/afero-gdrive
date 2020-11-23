@@ -26,6 +26,7 @@ jobs:
         include:
           - go: 1.15
             lint: true
+            test: true
   
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -47,6 +48,11 @@ jobs:
         run: go get -v && go build -v ./...
 
       - name: Test
+        if: matrix.test
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
         run: |
           apt-get update && apt-get install gcc -y
           go test -race -coverprofile=cover.out -v ./...

@@ -607,6 +607,9 @@ func TestTrash(t *testing.T) {
 }
 
 func TestListTrash(t *testing.T) {
+	if hostname, _ := os.Hostname(); hostname != "MacBook-Pro-de-Florent.local" {
+		t.Skip("Do not execute trash test")
+	}
 	t.Run("root", func(t *testing.T) {
 		driver, teardown := setup(t)
 		defer teardown()

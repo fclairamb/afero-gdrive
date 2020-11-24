@@ -3,7 +3,6 @@
     "config:base"
   ],
   "masterIssue": true,
-  "prConcurrentLimit": 1,
   "packageRules": [
     {
       "updateTypes": ["minor", "patch", "pin", "digest"],

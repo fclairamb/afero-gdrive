@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fclairamb/afero-gdrive/oauthhelper"
 	"github.com/hjson/hjson-go"
@@ -25,6 +26,14 @@ import (
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 )
+
+var (
+	prefix string
+)
+
+func init() {
+	prefix = time.Now().UTC().Format("20060102_150405.000000")
+}
 
 func setup(t *testing.T) (*GDriver, func()) {
 	env, err := ioutil.ReadFile(".env.json")
@@ -72,7 +81,7 @@ func setup(t *testing.T) (*GDriver, func()) {
 
 	// prepare test directory
 
-	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s", t.Name()))
+	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
 	driver.DeleteDirectory(fullPath)
 	err = driver.MkdirAll(fullPath, os.FileMode(700))
 	require.NoError(t, err)
@@ -624,7 +633,7 @@ func TestListTrash(t *testing.T) {
 			return strings.Compare(files[i].Path(), files[j].Path()) == -1
 		})
 
-		require.Equal(t, "GDriveTest-TestListTrash-root/Folder1/File1", files[0].Path())
+		require.Equal(t, fmt.Sprintf("GDriveTest-TestListTrash-root-%s/Folder1/File1", prefix), files[0].Path())
 		require.Equal(t, "GDriveTest-TestListTrash-root/Folder2", files[1].Path())
 	})
 

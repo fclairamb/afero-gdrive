@@ -634,7 +634,7 @@ func TestListTrash(t *testing.T) {
 		})
 
 		require.Equal(t, fmt.Sprintf("GDriveTest-TestListTrash-root-%s/Folder1/File1", prefix), files[0].Path())
-		require.Equal(t, "GDriveTest-TestListTrash-root/Folder2", files[1].Path())
+		require.Equal(t, fmt.Sprintf("GDriveTest-TestListTrash-root-%s/Folder2", prefix), files[1].Path())
 	})
 
 	t.Run("of folder", func(t *testing.T) {

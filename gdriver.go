@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/afero"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -506,7 +507,8 @@ func isInRoot(srv *drive.Service, rootID string, file *drive.File, basePath stri
 }
 
 func (d *GDriver) getFile(rootNode *FileInfo, path string, fields ...googleapi.Field) (*FileInfo, error) {
-	return d.getFileByParts(rootNode, strings.FieldsFunc(path, isPathSeperator), fields...)
+	spl := strings.FieldsFunc(path, isPathSeperator)
+	return d.getFileByParts(rootNode, spl, fields...)
 }
 
 func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields ...googleapi.Field) (*FileInfo, error) {
@@ -522,7 +524,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 	var lastFile *drive.File
 	for i := 0; i < amountOfParts; i++ {
 		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", lastID, sanitizeName(pathParts[i]))
-		// log.Println(query)
+		log.Println("query:" + query)
 		call := d.srv.Files.List().Q(query)
 
 		// if we are not at the last part
@@ -547,7 +549,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 		}
 		lastFile = files.Files[0]
 		lastID = lastFile.Id
-		// log.Printf("=>%s = %s\n", path.Join(pathParts[:i+1]...), lastID)
+		log.Printf("=>%s = %s\n", path.Join(pathParts[:i+1]...), lastID)
 	}
 
 	return &FileInfo{

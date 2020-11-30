@@ -8,15 +8,6 @@ import (
 	"sync"
 )
 
-/*
-type File interface {
-	Info() *FileInfo
-	Write([]byte) (int, error)
-	Read([]byte) (int, error)
-	Close() error
-}
-*/
-
 func (f *File) AsAfero() afero.File {
 	return f
 }

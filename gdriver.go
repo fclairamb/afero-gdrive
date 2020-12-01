@@ -335,8 +335,7 @@ func (d *GDriver) GetFileHash(path string, method HashMethod) (*FileInfo, []byte
 	return file, []byte(file.file.Md5Checksum), nil
 }
 
-// putFile uploads a File to the specified path
-// it creates non existing directories
+// createFile creates a new file
 func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
@@ -461,20 +460,19 @@ func (d *GDriver) Move(oldPath, newPath string) (*FileInfo, error) {
 }
 
 // Trash trashes a File or directory
-func (d *GDriver) Trash(path string) error {
-	file, err := d.getFile(d.rootNode, path, "files(id)")
-	if err != nil {
-		return err
-	}
-
-	if file == d.rootNode {
-		return errors.New("root cannot be trashed")
-	}
-
-	_, err = d.srv.Files.Update(file.file.Id, &drive.File{
+func (d *GDriver) trash(fi *FileInfo) error {
+	_, err := d.srv.Files.Update(fi.file.Id, &drive.File{
 		Trashed: true,
 	}).Do()
 	return err
+}
+
+func (d *GDriver) trashPath(path string) error {
+	fi, err := d.getFile(d.rootNode, path, "files(id)")
+	if err != nil {
+		return err
+	}
+	return d.trash(fi)
 }
 
 // ListTrash lists the contents of the trash, if you specify directories it will only list the trash contents of the specified directories

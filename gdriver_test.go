@@ -172,9 +172,9 @@ func TestFileFolderMixup(t *testing.T) {
 	driver := setup(t)
 
 	// create File
-	require.NoError(t, putFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
+	require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
-	err := putFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
+	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
 	require.EqualError(t, err, "unable to create File in `Folder1/File1': `File1' is not a directory")
 }
 
@@ -182,7 +182,7 @@ func TestPutFile(t *testing.T) {
 	t.Run("in root folder", func(t *testing.T) {
 		driver := setup(t)
 
-		writeFile(t, driver, "File1", "Hello World")
+		mustWriteFile(t, driver, "File1", "Hello World")
 
 		fi, err := driver.Stat("File1")
 		require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestPutFile(t *testing.T) {
 		driver := setup(t)
 
 		// create File
-		writeFile(t, driver, "Folder1/File1", "Hello World")
+		mustWriteFile(t, driver, "Folder1/File1", "Hello World")
 
 		// Folder created?
 		require.NoError(t, getError(driver.Stat("Folder1")))
@@ -226,9 +226,9 @@ func TestPutFile(t *testing.T) {
 		driver := setup(t)
 
 		// create File
-		require.NoError(t, putFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
+		require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
-		err := putFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
+		err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
 		require.EqualError(t, err, "unable to create File in `Folder1/File1': `File1' is not a directory")
 	})
 
@@ -236,14 +236,14 @@ func TestPutFile(t *testing.T) {
 		driver := setup(t)
 
 		// create File
-		require.EqualError(t, putFile(driver, "", bytes.NewBufferString("Hello World")), "path cannot be empty")
+		require.EqualError(t, writeFile(driver, "", bytes.NewBufferString("Hello World")), "path cannot be empty")
 	})
 
 	t.Run("overwrite File", func(t *testing.T) {
 		driver := setup(t)
 
 		// create File
-		writeFile(t, driver, "File1", "Hello World")
+		mustWriteFile(t, driver, "File1", "Hello World")
 
 		// File created?
 		fi1, err := driver.Stat("File1")
@@ -257,7 +257,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "Hello World", string(received))
 
 		// create File
-		writeFile(t, driver, "File1", "Hello Universe")
+		mustWriteFile(t, driver, "File1", "Hello Universe")
 
 		// File created?
 		fi2, err := driver.Stat("File1")
@@ -557,7 +557,7 @@ func TestTrash(t *testing.T) {
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
 		// trash File
-		require.NoError(t, driver.Trash("Folder1/File1"))
+		require.NoError(t, driver.trashPath("Folder1/File1"))
 
 		// File1 gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
@@ -572,7 +572,7 @@ func TestTrash(t *testing.T) {
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
 		// trash folder
-		require.NoError(t, driver.Trash("Folder1"))
+		require.NoError(t, driver.trashPath("Folder1"))
 
 		// Folder1 gone?
 		require.EqualError(t, getError(driver.Stat("Folder1")), "`Folder1' does not exist")
@@ -584,7 +584,7 @@ func TestTrash(t *testing.T) {
 	t.Run("trash root", func(t *testing.T) {
 		driver := setup(t)
 
-		require.EqualError(t, driver.Trash(""), "root cannot be trashed")
+		require.EqualError(t, driver.trashPath(""), "root cannot be trashed")
 	})
 }
 
@@ -600,9 +600,9 @@ func TestListTrash(t *testing.T) {
 		newFile(t, driver, "Folder3/File3", "Hello World")
 
 		// trash File1
-		require.NoError(t, driver.Trash("Folder1/File1"))
+		require.NoError(t, driver.trashPath("Folder1/File1"))
 		// trash Folder2
-		require.NoError(t, driver.Trash("Folder2"))
+		require.NoError(t, driver.trashPath("Folder2"))
 
 		var files []*FileInfo
 		require.NoError(t, driver.ListTrash("", func(f *FileInfo) error {
@@ -629,8 +629,8 @@ func TestListTrash(t *testing.T) {
 		newFile(t, driver, "Folder2/File3", "Hello World")
 
 		// trash File1 and File2
-		require.NoError(t, driver.Trash("Folder1/File1"))
-		require.NoError(t, driver.Trash("Folder1/File2"))
+		require.NoError(t, driver.trashPath("Folder1/File1"))
+		require.NoError(t, driver.trashPath("Folder1/File2"))
 
 		var files []*FileInfo
 		require.NoError(t, driver.ListTrash("Folder1", func(f *FileInfo) error {
@@ -655,7 +655,7 @@ func TestListTrash(t *testing.T) {
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
 		// trash File1
-		require.NoError(t, driver.Trash("Folder1/File1"))
+		require.NoError(t, driver.trashPath("Folder1/File1"))
 
 		err := driver.ListTrash("", func(f *FileInfo) error {
 			return errors.New("Custom Error")
@@ -705,7 +705,7 @@ func TestGetHash(t *testing.T) {
 
 	buf := bytes.NewBufferString("Hello World")
 	hash1 := md5.Sum(buf.Bytes())
-	err := putFile(driver, "File1", buf)
+	err := writeFile(driver, "File1", buf)
 	require.NoError(t, err)
 
 	_, hash2, err := driver.GetFileHash("File1", HashMethodMD5)
@@ -739,7 +739,7 @@ func TestOpen(t *testing.T) {
 			_, err := rand.Read(buf[:])
 			require.NoError(t, err)
 
-			err = putFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
+			err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
 			require.NoError(t, err)
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
@@ -810,11 +810,11 @@ func TestOpen(t *testing.T) {
 	})
 }
 
-func writeFile(t *testing.T, driver *GDriver, path string, content string) {
-	require.NoError(t, putFile(driver, path, bytes.NewBufferString(content)))
+func mustWriteFile(t *testing.T, driver *GDriver, path string, content string) {
+	require.NoError(t, writeFile(driver, path, bytes.NewBufferString(content)))
 }
 
-func putFile(driver *GDriver, path string, content io.Reader) error {
+func writeFile(driver *GDriver, path string, content io.Reader) error {
 	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
 	if err != nil {
 		return err
@@ -831,7 +831,7 @@ func putFile(driver *GDriver, path string, content io.Reader) error {
 }
 
 func newFile(t *testing.T, driver *GDriver, path, contents string) {
-	err := putFile(driver, path, bytes.NewBufferString(contents))
+	err := writeFile(driver, path, bytes.NewBufferString(contents))
 	require.NoError(t, err)
 }
 

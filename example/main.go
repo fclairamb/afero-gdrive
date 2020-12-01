@@ -56,7 +56,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	files, err := gdrive.ListDirectory("/", 2000)
+	files, err := gdrive.listDirectoryPath("/", 2000)
 
 	for _, f := range files {
 		fmt.Printf("%s\t%d\t%s\n", f.Name(), f.Size(), f.ModTime())

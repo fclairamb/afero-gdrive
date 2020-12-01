@@ -1,17 +1,18 @@
 package gdriver
 
 import (
+	"errors"
 	"fmt"
 )
 
-// CallbackError will be returned if the callback returned an error
-type CallbackError struct {
-	NestedError error
-}
+// ErrNotImplemented is returned when this operation is not (yet) implemented
+var ErrNotImplemented = errors.New("not implemented")
 
-func (e CallbackError) Error() string {
-	return fmt.Sprintf("callback throwed an error: %v", e.NestedError)
-}
+// ErrNotSupported is returned when this operations is not supported by Google Drive
+var ErrNotSupported = errors.New("google drive doesn't support this operation")
+
+// ErrInvalidSeek is returned when the seek operation is not doable
+var ErrInvalidSeek = errors.New("invalid seek offset")
 
 // FileNotExistError will be thrown if an File was not found
 type FileNotExistError struct {
@@ -54,9 +55,9 @@ func (e FileIsDirectoryError) Error() string {
 
 // FileIsNotDirectoryError will be thrown if a File is not a directory
 type FileIsNotDirectoryError struct {
-	Path string
+	fi *FileInfo
 }
 
 func (e FileIsNotDirectoryError) Error() string {
-	return fmt.Sprintf("`%s' is not a directory", e.Path)
+	return fmt.Sprintf("file is not a directory")
 }

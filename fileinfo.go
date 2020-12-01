@@ -8,7 +8,7 @@ import (
 	drive "google.golang.org/api/drive/v3"
 )
 
-const MIME_FOLDER = "application/vnd.google-apps.folder"
+const MimeFolder = "application/vnd.google-apps.folder"
 
 // FileInfo represents File information for a File or directory
 type FileInfo struct {
@@ -18,7 +18,7 @@ type FileInfo struct {
 
 func (i *FileInfo) Mode() os.FileMode {
 	mode := os.FileMode(0666)
-	if i.file.MimeType == MIME_FOLDER {
+	if i.file.MimeType == MimeFolder {
 		mode |= os.ModeDir
 	}
 	return mode

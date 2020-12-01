@@ -74,7 +74,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 }
 
 func (f *File) Readdir(count int) ([]os.FileInfo, error) {
-	return f.Driver.ListDirectory(f.Path, count)
+	return f.Driver.listDirectory(f.FileInfo, count)
 }
 
 func (f *File) Readdirnames(n int) ([]string, error) {
@@ -91,10 +91,6 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 
 func (f *File) Truncate(int64) error {
 	return ErrNotSupported
-}
-
-func (f *File) Info() *FileInfo {
-	return f.FileInfo
 }
 
 func (f *File) Read(p []byte) (int, error) {

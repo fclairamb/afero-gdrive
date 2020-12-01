@@ -19,19 +19,15 @@ import (
 
 // GDriver can be used to access google drive in a traditional File-folder-path pattern
 type GDriver struct {
-	srv           *drive.Service
-	rootNode      *FileInfo
-	Logger        log.Logger
-	DeleteInTrash bool
+	srv                 *drive.Service
+	rootNode            *FileInfo
+	Logger              log.Logger
+	LogReaderAndWriters bool
+	TrashForDelete      bool
 }
 
 // HashMethod is the hashing method to use for GetFileHash
 type HashMethod int
-
-const (
-	// HashMethodMD5 sets the method to MD5
-	HashMethodMD5 HashMethod = 0
-)
 
 const (
 	mimeTypeFolder = "application/vnd.google-apps.folder"
@@ -55,15 +51,6 @@ func init() {
 		googleapi.Field(fmt.Sprintf("files(%s)", googleapi.CombineFields(fileInfoFields))),
 	}
 }
-
-// ErrNotImplemented is returned when this operation is not (yet) implemented
-var ErrNotImplemented = errors.New("not implemented")
-
-// ErrNotSupported is returned when this operations is not supported by Google Drive
-var ErrNotSupported = errors.New("google drive doesn't support this operation")
-
-// ErrInvalidSeek is returned when the seek operation is not doable
-var ErrInvalidSeek = errors.New("invalid seek offset")
 
 // New creates a new Google Drive Driver, client must me an authenticated instance for google drive
 func New(client *http.Client, opts ...Option) (*GDriver, error) {
@@ -113,7 +100,7 @@ func (d *GDriver) SetRootDirectory(path string) (*FileInfo, error) {
 		return nil, err
 	}
 	if !file.IsDir() {
-		return nil, FileIsNotDirectoryError{Path: path}
+		return nil, FileIsNotDirectoryError{fi: file}
 	}
 	d.rootNode = file
 	return file, nil
@@ -124,21 +111,15 @@ func (d *GDriver) Stat(path string) (os.FileInfo, error) {
 	return d.getFile(path, listFields...)
 }
 
-// ListDirectory will get all contents of a directory, calling fileFunc with the collected File information
-func (d *GDriver) ListDirectory(path string, count int) ([]os.FileInfo, error) {
-	file, err := d.getFile(path, "files(id,name,mimeType)")
-	if err != nil {
-		return nil, err
-	}
-	if !file.IsDir() {
-		return nil, FileIsNotDirectoryError{Path: path}
+func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) {
+	if !fi.IsDir() {
+		return nil, FileIsNotDirectoryError{fi}
 	}
 	var pageToken string
-
 	files := make([]os.FileInfo, 0)
 
 	for len(files) < count {
-		call := d.srv.Files.List().Q(fmt.Sprintf("'%s' in parents and trashed = false", file.file.Id)).Fields(append(listFields, "nextPageToken")...)
+		call := d.srv.Files.List().Q(fmt.Sprintf("'%s' in parents and trashed = false", fi.file.Id)).Fields(append(listFields, "nextPageToken")...)
 
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
@@ -150,13 +131,13 @@ func (d *GDriver) ListDirectory(path string, count int) ([]os.FileInfo, error) {
 		}
 
 		if descendants == nil {
-			return nil, fmt.Errorf("no File information present (in `%s')", path)
+			return nil, errors.New("no File information present in path")
 		}
 
 		for i := 0; i < len(descendants.Files); i++ {
 			files = append(files, &FileInfo{
 				file:       descendants.Files[i],
-				parentPath: file.Path(),
+				parentPath: fi.Path(),
 			})
 		}
 
@@ -165,6 +146,18 @@ func (d *GDriver) ListDirectory(path string, count int) ([]os.FileInfo, error) {
 		}
 	}
 	return files, nil
+}
+
+// listDirectoryPath will get all contents of a directory, calling fileFunc with the collected File information
+func (d *GDriver) listDirectoryPath(path string, count int) ([]os.FileInfo, error) {
+	file, err := d.getFile(path, "files(id,mimeType)")
+	if err != nil {
+		return nil, err
+	}
+	if !file.IsDir() {
+		return nil, FileIsNotDirectoryError{fi: file}
+	}
+	return d.listDirectory(file, count)
 }
 
 // MakeDirectory creates a directory for the specified path, it will create non existent directores automatically
@@ -231,13 +224,23 @@ func (d *GDriver) DeleteDirectory(path string) error {
 		return err
 	}
 	if !file.IsDir() {
-		return FileIsNotDirectoryError{Path: path}
+		return FileIsNotDirectoryError{fi: file}
 	}
 
 	if file == d.rootNode {
 		return errors.New("root cannot be deleted")
 	}
-	return d.srv.Files.Delete(file.file.Id).Do()
+	return d.deleteFile(file)
+}
+
+func (d *GDriver) deleteFile(fi *FileInfo) error {
+	var err error
+	if d.TrashForDelete {
+		_, err = d.srv.Files.Update(fi.file.Id, &drive.File{Trashed: true}).Do()
+	} else {
+		err = d.srv.Files.Delete(fi.file.Id).Do()
+	}
+	return err
 }
 
 // RemoveAll will delete a File or directory, if directory it will also delete its descendants
@@ -249,7 +252,7 @@ func (d *GDriver) RemoveAll(path string) error {
 	if file == d.rootNode {
 		return errors.New("root cannot be deleted")
 	}
-	return d.srv.Files.Delete(file.file.Id).Do()
+	return d.deleteFile(file)
 }
 
 func (d *GDriver) Remove(path string) error {
@@ -286,19 +289,23 @@ func (d *GDriver) getFileWriter(fi *FileInfo) (io.WriteCloser, chan error, error
 
 	// the channel is used to notify the Close() or Write() function if something goes wrong
 	go func() {
-		d.Logger.Info("Starting the writer",
-			"fileId", fi.file.Id,
-			"fileName", fi.file.Name,
-		)
+		if d.LogReaderAndWriters {
+			d.Logger.Info("Starting the writer",
+				"fileId", fi.file.Id,
+				"fileName", fi.file.Name,
+			)
+		}
 
 		_, err := d.srv.Files.Update(fi.file.Id, nil).Fields(fileInfoFields...).Media(reader).Do()
 
 		endErr <- err
 
-		d.Logger.Info("Writer stopped",
-			"fileId", fi.file.Id,
-			"fileName", fi.file.Name,
-		)
+		if d.LogReaderAndWriters {
+			d.Logger.Info("Writer stopped",
+				"fileId", fi.file.Id,
+				"fileName", fi.file.Name,
+			)
+		}
 	}()
 	return writer, endErr, nil
 }
@@ -307,7 +314,7 @@ func (d *GDriver) getFileInfoFromPath(path string) (*FileInfo, error) {
 	return d.getFile(path, listFields...)
 }
 
-// createFile creates a new file
+// createFile creates a new fi
 func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
@@ -559,13 +566,17 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 	}
 
 	// determinate existent status
-	file, err := d.getFile(path)
+	file, err := d.getFile(path, "files(id,mimeType)")
 	var fileExists bool
 
 	if err == nil {
 		fileExists = true
 		if file.IsDir() {
-			return nil, FileIsDirectoryError{Path: path}
+			return &File{
+				Driver:   d,
+				Path:     path,
+				FileInfo: file,
+			}, nil
 		}
 	} else if IsNotExist(err) {
 		fileExists = false
@@ -660,11 +671,10 @@ func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 	if err != nil {
 		return err
 	}
-	update, err := d.srv.Files.Update(fi.file.Id, &drive.File{
+	_, err = d.srv.Files.Update(fi.file.Id, &drive.File{
 		ViewedByMeTime: atime.Format(time.RFC3339),
 		ModifiedTime:   mTime.Format(time.RFC3339),
 		// ModifiedByMeTime: mTime.Format(time.RFC3339),
 	}).Do()
-	d.Logger.Info("Chtimes", "updateResponse", update)
 	return err
 }

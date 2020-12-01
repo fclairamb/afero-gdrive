@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/fclairamb/afero-gdrive/log/gokit"
+	"github.com/spf13/afero"
 	"io"
 	"io/ioutil"
 	"log"
@@ -77,6 +78,7 @@ func setup(t *testing.T) *GDriver {
 	require.NoError(t, err)
 
 	driver.Logger = gokit.NewGKLoggerStdout()
+	driver.TrashForDelete = true
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
 
@@ -122,7 +124,7 @@ func TestMakeDirectory(t *testing.T) {
 	})
 
 	t.Run("in non existing directory", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		require.NoError(t, driver.MkdirAll("Folder1/Folder2/Folder3", os.FileMode(0)))
 		fi, err := driver.Stat("Folder1/Folder2/Folder3")
@@ -140,7 +142,7 @@ func TestMakeDirectory(t *testing.T) {
 	})
 
 	t.Run("creation of existing directory", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(0))
 		require.NoError(t, err)
@@ -150,7 +152,7 @@ func TestMakeDirectory(t *testing.T) {
 	})
 
 	t.Run("create folder as a descendant of a File", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
@@ -158,14 +160,14 @@ func TestMakeDirectory(t *testing.T) {
 	})
 
 	t.Run("make root", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		require.NoError(t, driver.Mkdir("", os.FileMode(0)))
 	})
 }
 
 func TestFileFolderMixup(t *testing.T) {
-	driver := setup(t)
+	driver := setup(t).AsAfero()
 
 	// create File
 	require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
@@ -176,7 +178,7 @@ func TestFileFolderMixup(t *testing.T) {
 
 func TestCreateFile(t *testing.T) {
 	t.Run("in root folder", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		mustWriteFile(t, driver, "File1", "Hello World")
 
@@ -285,8 +287,11 @@ func TestGetFile(t *testing.T) {
 	require.Equal(t, "Folder1/File1", fi.Path())
 
 	// Get File contents of an Folder
-	_, err = driver.Open("Folder1")
-	require.EqualError(t, err, "`Folder1' is a directory")
+	file, err := driver.Open("Folder1")
+	require.NoError(t, err)
+	fileInfo, err := file.Stat()
+	require.NoError(t, err)
+	require.True(t, fileInfo.IsDir())
 }
 
 func TestDelete(t *testing.T) {
@@ -342,15 +347,19 @@ func TestDeleteDirectory(t *testing.T) {
 }
 
 func TestListDirectory(t *testing.T) {
-	t.Run("standart", func(t *testing.T) {
-		driver := setup(t)
+	t.Run("standard", func(t *testing.T) {
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 		newFile(t, driver, "Folder1/File2", "Hello World")
 
 		// var files []*FileInfo
-		files, err := driver.ListDirectory("Folder1", 2000)
+		dir, err := driver.Open("Folder1")
 		require.NoError(t, err)
+
+		files, err := dir.Readdir(1000)
+		require.NoError(t, err)
+
 		require.Len(t, files, 2)
 
 		// sort so we can be sure the test works with random order
@@ -372,7 +381,10 @@ func TestListDirectory(t *testing.T) {
 		require.EqualError(t, getError(driver.Stat("Folder1/File2")), "`Folder1/File2' does not exist")
 
 		// Test if folder is empty
-		files, err = driver.ListDirectory("Folder1", 2000)
+		dir, err = driver.Open("Folder1")
+		require.NoError(t, err)
+
+		files, err = dir.Readdir(1000)
 		require.NoError(t, err)
 
 		require.Len(t, files, 0)
@@ -381,19 +393,21 @@ func TestListDirectory(t *testing.T) {
 	t.Run("directory does not exist", func(t *testing.T) {
 		driver := setup(t)
 
-		_, err := driver.ListDirectory("Folder1", 2000)
+		_, err := driver.listDirectoryPath("Folder1", 2000)
 
 		require.EqualError(t, err, "`Folder1' does not exist")
 	})
 
 	t.Run("list File", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "File1", "Hello World")
 
-		_, err := driver.ListDirectory("File1", 2000)
+		dir, err := driver.Open("File1")
+		require.NoError(t, err)
 
-		require.EqualError(t, err, "`File1' is not a directory")
+		_, err = dir.Readdir(1000)
+		require.EqualError(t, err, "file is not a directory")
 	})
 }
 
@@ -467,12 +481,17 @@ func TestMove(t *testing.T) {
 
 func TestTrash(t *testing.T) {
 	t.Run("trash File", func(t *testing.T) {
-		driver := setup(t)
+		var driver afero.Fs
+		{
+			src := setup(t)
+			src.TrashForDelete = true
+			driver = src.AsAfero()
+		}
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
 		// trash File
-		require.NoError(t, driver.trashPath("Folder1/File1"))
+		require.NoError(t, driver.Remove("Folder1/File1"))
 
 		// File1 gone?
 		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
@@ -574,47 +593,35 @@ func TestIsInRoot(t *testing.T) {
 	})
 
 	t.Run("not in folder", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 		require.NoError(t, driver.Mkdir("Folder2", os.FileMode(0)))
 		_, err := driver.Stat("Folder1/File1")
-		// folder2Id := fi.file.Id
 
-		_, err = driver.getFile("Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
+		_, err = driver.Open("Folder1/File1")
 		require.NoError(t, err)
-
-		/*
-			inRoot, parentPath, err := isInRoot(driver.srv, folder2Id, fi.file, "")
-			require.NoError(t, err)
-			require.False(t, inRoot)
-			require.Equal(t, "", parentPath)
-		*/
 	})
 }
 
 func TestAferoSpecifics(t *testing.T) {
-	driver := setup(t)
-	t.Run("chmod", func(t *testing.T) {
-		_, err := driver.createFile("chmod")
-		require.NoError(t, err)
-		err = driver.Chmod("chmod", os.FileMode(755))
-		require.NoError(t, err)
+	driver := setup(t).AsAfero()
+	t.Run("Chmod", func(t *testing.T) {
+		require.NoError(t, writeFile(driver, "Chmod", bytes.NewBufferString("Chmod test")))
+		require.NoError(t, driver.Chmod("Chmod", os.FileMode(755)))
 	})
-	t.Run("chtimes", func(t *testing.T) {
-		_, err := driver.createFile("chtimes")
-		require.NoError(t, err)
+	t.Run("Chtimes", func(t *testing.T) {
+		require.NoError(t, writeFile(driver, "Chtimes", bytes.NewBufferString("Chtimes test")))
 		aTime := time.Unix(1606435200, 0)
 		mTime := time.Unix(1582675200, 0)
-		err = driver.Chtimes("chtimes", aTime, mTime)
-		require.NoError(t, err)
+		require.NoError(t, driver.Chtimes("chtimes", aTime, mTime))
 	})
 }
 
 func TestOpen(t *testing.T) {
 	t.Run("read", func(t *testing.T) {
 		t.Run("existing File", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			newFile(t, driver, "Folder1/File1", "Hello World")
 
@@ -627,7 +634,7 @@ func TestOpen(t *testing.T) {
 			require.Equal(t, "Hello World", string(data))
 		})
 		t.Run("existing big File", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			var buf [4096*3 + 15]byte
 			_, err := rand.Read(buf[:])
@@ -645,14 +652,14 @@ func TestOpen(t *testing.T) {
 			require.EqualValues(t, buf[:], data)
 		})
 		t.Run("non-existing File", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
 			require.EqualError(t, err, FileNotExistError{Path: "Folder1/File1"}.Error())
 			require.Nil(t, f)
 		})
 		t.Run("non-existing File with create", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY|os.O_CREATE, os.FileMode(0))
 			require.EqualError(t, err, FileNotExistError{Path: "Folder1/File1"}.Error())
@@ -662,7 +669,7 @@ func TestOpen(t *testing.T) {
 
 	t.Run("write", func(t *testing.T) {
 		t.Run("existing File", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			newFile(t, driver, "Folder1/File1", "Hello World")
 
@@ -680,14 +687,14 @@ func TestOpen(t *testing.T) {
 			require.Equal(t, "Hello Universe", string(received))
 		})
 		t.Run("non-existing File", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY, os.FileMode(0))
 			require.EqualError(t, err, FileNotExistError{Path: "Folder1/File1"}.Error())
 			require.Nil(t, f)
 		})
 		t.Run("non-existing File with create", func(t *testing.T) {
-			driver := setup(t)
+			driver := setup(t).AsAfero()
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY|os.O_CREATE, os.FileMode(0))
 			n, err := io.WriteString(f, "Hello Universe")
@@ -704,18 +711,18 @@ func TestOpen(t *testing.T) {
 	})
 }
 
-func mustWriteFile(t *testing.T, driver *GDriver, path string, content string) {
+func mustWriteFile(t *testing.T, driver afero.Fs, path string, content string) {
 	require.NoError(t, writeFile(driver, path, bytes.NewBufferString(content)))
 }
 
-func writeFile(driver *GDriver, path string, content io.Reader) error {
+func writeFile(driver afero.Fs, path string, content io.Reader) error {
 	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err = f.Close(); err != nil {
-			log.Println("Couldn't close file:", err)
+			log.Println("Couldn't close fi:", err)
 		}
 	}()
 	if _, err := io.Copy(f, content); err != nil {
@@ -724,7 +731,7 @@ func writeFile(driver *GDriver, path string, content io.Reader) error {
 	return nil
 }
 
-func newFile(t *testing.T, driver *GDriver, path, contents string) {
+func newFile(t *testing.T, driver afero.Fs, path, contents string) {
 	err := writeFile(driver, path, bytes.NewBufferString(contents))
 	require.NoError(t, err)
 }

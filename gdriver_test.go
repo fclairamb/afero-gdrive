@@ -99,7 +99,7 @@ func setup(t *testing.T) *GDriver {
 
 func TestMakeDirectory(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		err := driver.MkdirAll("Folder1", os.FileMode(700))
 		require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestCreateFile(t *testing.T) {
 	})
 
 	t.Run("in non existing folder", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		// create File
 		mustWriteFile(t, driver, "Folder1/File1", "Hello World")
@@ -221,7 +221,7 @@ func TestCreateFile(t *testing.T) {
 	})
 
 	t.Run("as descendant of File", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		// create File
 		require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
@@ -231,14 +231,14 @@ func TestCreateFile(t *testing.T) {
 	})
 
 	t.Run("empty target", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		// create File
 		require.EqualError(t, writeFile(driver, "", bytes.NewBufferString("Hello World")), "path cannot be empty")
 	})
 
 	t.Run("overwrite File", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		// create File
 		mustWriteFile(t, driver, "File1", "Hello World")
@@ -273,18 +273,16 @@ func TestCreateFile(t *testing.T) {
 }
 
 func TestGetFile(t *testing.T) {
-	driver := setup(t)
+	driver := setup(t).AsAfero()
 
 	newFile(t, driver, "Folder1/File1", "Hello World")
 
 	// Compare File content
-	fi, err := driver.getFileInfoFromPath("Folder1/File1")
+	fi, err := driver.Open("Folder1/File1")
 	require.NoError(t, err)
-	r, err := driver.getFileReader(fi, 0)
-	require.NoError(t, err)
-	received, err := ioutil.ReadAll(r)
+	received, err := ioutil.ReadAll(fi)
 	require.Equal(t, "Hello World", string(received))
-	require.Equal(t, "Folder1/File1", fi.Path())
+	require.Equal(t, "Folder1/File1", fi.Name())
 
 	// Get File contents of an Folder
 	file, err := driver.Open("Folder1")

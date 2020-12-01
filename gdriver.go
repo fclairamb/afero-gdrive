@@ -566,7 +566,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 	}
 
 	// determinate existent status
-	file, err := d.getFile(path, "files(id,mimeType)")
+	file, err := d.getFileInfoFromPath(path)
 	var fileExists bool
 
 	if err == nil {

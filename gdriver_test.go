@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/fclairamb/afero-gdrive/log/gokit"
 	"io"
@@ -175,7 +174,7 @@ func TestFileFolderMixup(t *testing.T) {
 	require.EqualError(t, err, "unable to create File in `Folder1/File1': `File1' is not a directory")
 }
 
-func TestPutFile(t *testing.T) {
+func TestCreateFile(t *testing.T) {
 	t.Run("in root folder", func(t *testing.T) {
 		driver := setup(t)
 
@@ -398,81 +397,15 @@ func TestListDirectory(t *testing.T) {
 	})
 }
 
-func TestRename(t *testing.T) {
-	t.Run("rename with simple name", func(t *testing.T) {
-		driver := setup(t)
-
-		newFile(t, driver, "Folder1/File1", "Hello World")
-
-		// rename
-		err := driver.Rename("Folder1/File1", "File2")
-		require.NoError(t, err)
-		// require.Equal(t, "Folder1/File2", fi.Path())
-
-		// File renamed?
-		require.NoError(t, getError(driver.Stat("Folder1/File2")))
-
-		// old File gone?
-		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
-	})
-
-	t.Run("rename with path", func(t *testing.T) {
-		driver := setup(t)
-
-		newFile(t, driver, "Folder1/File1", "Hello World")
-
-		require.NoError(t, driver.Rename("Folder1/File1", "Folder2/File2"))
-
-		// File renamed?
-		require.NoError(t, getError(driver.Stat("Folder1/File2")))
-
-		// old File gone?
-		require.EqualError(t, getError(driver.Stat("Folder1/File1")), "`Folder1/File1' does not exist")
-
-		// Folder2 should not have been created
-		require.EqualError(t, getError(driver.Stat("Folder2")), "`Folder2' does not exist")
-	})
-
-	t.Run("rename directory", func(t *testing.T) {
-		driver := setup(t)
-
-		require.NoError(t, driver.Mkdir("Folder1", os.FileMode(0)))
-
-		// rename
-		require.NoError(t, driver.Rename("Folder1", "Folder2"))
-		// require.Equal(t, "Folder2", fi.Path())
-
-		// Folder2 renamed?
-		require.NoError(t, getError(driver.Stat("Folder2")))
-
-		// old folder gone?
-		require.EqualError(t, getError(driver.Stat("Folder1")), "`Folder1' does not exist")
-	})
-
-	t.Run("invalid new name", func(t *testing.T) {
-		driver := setup(t)
-
-		newFile(t, driver, "Folder1/File1", "Hello World")
-		require.EqualError(t, driver.Rename("Folder1/File1", ""), "new name cannot be empty")
-	})
-
-	t.Run("rename root node", func(t *testing.T) {
-		driver := setup(t)
-
-		require.EqualError(t, driver.Rename("/", "Test"), "root cannot be renamed")
-	})
-}
-
 func TestMove(t *testing.T) {
 	t.Run("move into another folder with another name", func(t *testing.T) {
 		driver := setup(t)
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// Move File
-		fi, err := driver.Move("Folder1/File1", "Folder2/File2")
+		// Rename File
+		err := driver.Rename("Folder1/File1", "Folder2/File2")
 		require.NoError(t, err)
-		require.Equal(t, "Folder2/File2", fi.Path())
 
 		// File moved?
 		require.NoError(t, getError(driver.Stat("Folder2/File2")))
@@ -489,10 +422,9 @@ func TestMove(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// Move File
-		fi, err := driver.Move("Folder1/File1", "Folder2/File1")
+		// Rename File
+		err := driver.Rename("Folder1/File1", "Folder2/File1")
 		require.NoError(t, err)
-		require.Equal(t, "Folder2/File1", fi.Path())
 
 		// File moved?
 		require.NoError(t, getError(driver.Stat("Folder2/File1")))
@@ -509,10 +441,9 @@ func TestMove(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		// Move File
-		fi, err := driver.Move("Folder1/File1", "Folder1/File2")
+		// Rename File
+		err := driver.Rename("Folder1/File1", "Folder1/File2")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/File2", fi.Path())
 
 		// File moved?
 		require.NoError(t, getError(driver.Stat("Folder1/File2")))
@@ -524,13 +455,13 @@ func TestMove(t *testing.T) {
 	t.Run("move root", func(t *testing.T) {
 		driver := setup(t)
 
-		require.EqualError(t, getError(driver.Move("", "Folder1")), "root cannot be moved")
+		require.EqualError(t, driver.Rename("", "Folder1"), "root cannot be moved")
 	})
 
 	t.Run("invalid target", func(t *testing.T) {
 		driver := setup(t)
 
-		require.EqualError(t, getError(driver.Move("Folder1", "")), "new path cannot be empty")
+		require.EqualError(t, driver.Rename("Folder1", ""), "new path cannot be empty")
 	})
 }
 
@@ -588,12 +519,8 @@ func TestListTrash(t *testing.T) {
 		// trash Folder2
 		require.NoError(t, driver.trashPath("Folder2"))
 
-		var files []*FileInfo
-		require.NoError(t, driver.ListTrash("", func(f *FileInfo) error {
-			files = append(files, f)
-			return nil
-		}))
-
+		files, err := driver.ListTrash("", 1000)
+		require.NoError(t, err)
 		require.Len(t, files, 2)
 
 		// sort so we can be sure the test works with random order
@@ -617,11 +544,8 @@ func TestListTrash(t *testing.T) {
 		require.NoError(t, driver.trashPath("Folder1/File2"))
 
 		var files []*FileInfo
-		require.NoError(t, driver.ListTrash("Folder1", func(f *FileInfo) error {
-			files = append(files, f)
-			return nil
-		}))
-
+		files, err := driver.ListTrash("Folder1", 1000)
+		require.NoError(t, err)
 		require.Len(t, files, 2)
 
 		// sort so we can be sure the test works with random order
@@ -631,21 +555,6 @@ func TestListTrash(t *testing.T) {
 
 		require.Equal(t, "Folder1/File1", files[0].Path())
 		require.Equal(t, "Folder1/File2", files[1].Path())
-	})
-
-	t.Run("callback error", func(t *testing.T) {
-		driver := setup(t)
-
-		newFile(t, driver, "Folder1/File1", "Hello World")
-
-		// trash File1
-		require.NoError(t, driver.trashPath("Folder1/File1"))
-
-		err := driver.ListTrash("", func(f *FileInfo) error {
-			return errors.New("Custom Error")
-		})
-		require.IsType(t, CallbackError{}, err)
-		require.EqualError(t, err, "callback throwed an error: Custom Error")
 	})
 }
 

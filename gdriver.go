@@ -361,75 +361,47 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	}, nil
 }
 
-// Rename renames a File or directory to a new name in the same folder
-func (d *GDriver) Rename(path string, newName string) error {
-	newNameParts := strings.FieldsFunc(newName, isPathSeperator)
-	amountOfParts := len(newNameParts)
+// Rename moves a File or directory to a new path, note that move also renames the target if necessary and creates non existing directories
+//
+// Examples:
+//     Rename("Folder1/File1", "Folder2/File2") // File1 in Folder1 will be moved to Folder2/File2
+//     Rename("Folder1/File1", "Folder2/File1") // File1 in Folder1 will be moved to Folder2/File1
+func (d *GDriver) Rename(oldPath, newPath string) error {
+	pathParts := strings.FieldsFunc(newPath, isPathSeperator)
+	amountOfParts := len(pathParts)
 	if amountOfParts <= 0 {
-		return errors.New("new name cannot be empty")
+		return errors.New("new path cannot be empty")
 	}
-	file, err := d.getFile(path)
+
+	file, err := d.getFile(oldPath, "files(id,parents)")
 	if err != nil {
 		return err
 	}
 
 	if file == d.rootNode {
-		return errors.New("root cannot be renamed")
-	}
-
-	_, err = d.srv.Files.Update(file.file.Id, &drive.File{
-		Name: sanitizeName(newNameParts[amountOfParts-1]),
-	}).Fields(fileInfoFields...).Do()
-	return err
-}
-
-// Move moves a File or directory to a new path, note that move also renames the target if necessary and creates non existing directories
-//
-// Examples:
-//     Move("Folder1/File1", "Folder2/File2") // File1 in Folder1 will be moved to Folder2/File2
-//     Move("Folder1/File1", "Folder2/File1") // File1 in Folder1 will be moved to Folder2/File1
-func (d *GDriver) Move(oldPath, newPath string) (*FileInfo, error) {
-	pathParts := strings.FieldsFunc(newPath, isPathSeperator)
-	amountOfParts := len(pathParts)
-	if amountOfParts <= 0 {
-		return nil, errors.New("new path cannot be empty")
-	}
-
-	file, err := d.getFile(oldPath, "files(id,parents)")
-	if err != nil {
-		return nil, err
-	}
-
-	if file == d.rootNode {
-		return nil, errors.New("root cannot be moved")
+		return errors.New("root cannot be moved")
 	}
 
 	parentNode := d.rootNode
 	if amountOfParts > 1 {
 		dir, err := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
 		if err != nil {
-			return nil, err
+			return err
 		}
 		parentNode = dir
 
 		if !parentNode.IsDir() {
-			return nil, fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			return fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
 		}
 	}
 
-	newFile, err := d.srv.Files.Update(file.file.Id, &drive.File{
+	_, err = d.srv.Files.Update(file.file.Id, &drive.File{
 		Name: sanitizeName(pathParts[amountOfParts-1]),
 	}).
 		AddParents(parentNode.file.Id).
 		RemoveParents(path.Join(file.file.Parents...)).
 		Fields(fileInfoFields...).Do()
-	if err != nil {
-		return nil, err
-	}
-	return &FileInfo{
-		file:       newFile,
-		parentPath: path.Join(pathParts[:amountOfParts-1]...),
-	}, nil
+	return err
 }
 
 // Trash trashes a File or directory
@@ -441,6 +413,9 @@ func (d *GDriver) trash(fi *FileInfo) error {
 }
 
 func (d *GDriver) trashPath(path string) error {
+	if path == "" {
+		return errors.New("root cannot be trashed")
+	}
 	fi, err := d.getFile(path, "files(id)")
 	if err != nil {
 		return err
@@ -449,36 +424,39 @@ func (d *GDriver) trashPath(path string) error {
 }
 
 // ListTrash lists the contents of the trash, if you specify directories it will only list the trash contents of the specified directories
-func (d *GDriver) ListTrash(filePath string, fileFunc func(f *FileInfo) error) error {
+func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 	file, err := d.getFile(filePath, "files(id,name)")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// no directories specified
 	files, err := d.srv.Files.List().Q("trashed = true").Fields(googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields)))).Do()
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var list []*FileInfo
 
 	for i := 0; i < len(files.Files); i++ {
 		// determinate the parent of this File
 
 		inRoot, parentPath, err := isInRoot(d.srv, file.file.Id, files.Files[i], "")
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		if inRoot {
-			if err = fileFunc(&FileInfo{
-				file:       files.Files[i],
-				parentPath: path.Join(file.Path(), parentPath),
-			}); err != nil {
-				return CallbackError{NestedError: err}
-			}
+			list = append(
+				list,
+				&FileInfo{
+					file:       files.Files[i],
+					parentPath: path.Join(file.Path(), parentPath),
+				},
+			)
 		}
 	}
-	return nil
+	return list, nil
 }
 
 func getRootNode(srv *drive.Service) (*FileInfo, error) {

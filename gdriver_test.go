@@ -410,7 +410,7 @@ func TestListDirectory(t *testing.T) {
 
 func TestMove(t *testing.T) {
 	t.Run("move into another folder with another name", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
@@ -429,7 +429,7 @@ func TestMove(t *testing.T) {
 	})
 
 	t.Run("move into another folder with same name", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
@@ -448,7 +448,7 @@ func TestMove(t *testing.T) {
 	})
 
 	t.Run("move into same folder", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
@@ -464,13 +464,13 @@ func TestMove(t *testing.T) {
 	})
 
 	t.Run("move root", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		require.EqualError(t, driver.Rename("", "Folder1"), "root cannot be moved")
 	})
 
 	t.Run("invalid target", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		require.EqualError(t, driver.Rename("Folder1", ""), "new path cannot be empty")
 	})
@@ -498,12 +498,17 @@ func TestTrash(t *testing.T) {
 	})
 
 	t.Run("trash folder", func(t *testing.T) {
-		driver := setup(t)
+		var driver afero.Fs
+		{
+			src := setup(t)
+			src.TrashForDelete = true
+			driver = src.AsAfero()
+		}
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
 		// trash folder
-		require.NoError(t, driver.trashPath("Folder1"))
+		require.NoError(t, driver.Remove("Folder1"))
 
 		// Folder1 gone?
 		require.EqualError(t, getError(driver.Stat("Folder1")), "`Folder1' does not exist")
@@ -513,9 +518,14 @@ func TestTrash(t *testing.T) {
 	})
 
 	t.Run("trash root", func(t *testing.T) {
-		driver := setup(t)
+		var driver afero.Fs
+		{
+			src := setup(t)
+			src.TrashForDelete = true
+			driver = src.AsAfero()
+		}
 
-		require.EqualError(t, driver.trashPath(""), "root cannot be trashed")
+		require.EqualError(t, driver.Remove(""), "root cannot be trashed")
 	})
 }
 

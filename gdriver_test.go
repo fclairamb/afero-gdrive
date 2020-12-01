@@ -327,7 +327,7 @@ func TestDeleteDirectory(t *testing.T) {
 		newFile(t, driver, "File1", "Hello World")
 
 		// delete File
-		require.EqualError(t, driver.DeleteDirectory("File1"), "`File1' is not a directory")
+		require.EqualError(t, driver.DeleteDirectory("File1"), "file is not a directory")
 
 		// File  should not be deleted
 		require.NoError(t, getError(driver.Stat("File1")))

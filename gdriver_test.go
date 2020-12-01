@@ -129,7 +129,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.NoError(t, driver.MkdirAll("Folder1/Folder2/Folder3", os.FileMode(0)))
 		fi, err := driver.Stat("Folder1/Folder2/Folder3")
 		require.NoError(t, err)
-		require.Equal(t, "Folder3", fi.Name())
+		require.Equal(t, "Folder1/Folder2/Folder3", fi.Name())
 
 		// Folder1 created?
 		require.NoError(t, getError(driver.Stat("Folder1")))
@@ -156,7 +156,7 @@ func TestMakeDirectory(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		require.EqualError(t, driver.MkdirAll("Folder1/File1/Folder2", os.FileMode(0)), "unable to create directory in `Folder1/File1': `File1' is not a directory")
+		require.EqualError(t, driver.MkdirAll("Folder1/File1/Folder2", os.FileMode(0)), "unable to create directory in `Folder1/File1': `Folder1/File1' is not a directory")
 	})
 
 	t.Run("make root", func(t *testing.T) {
@@ -319,17 +319,20 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteDirectory(t *testing.T) {
-	t.Run("delete File", func(t *testing.T) {
-		driver := setup(t).AsAfero()
+	// Since Afero provide the same API for directory and file removal/deletion, this test cannot be kept.
+	/*
+		t.Run("delete File", func(t *testing.T) {
+			driver := setup(t).AsAfero()
 
-		newFile(t, driver, "File1", "Hello World")
+			newFile(t, driver, "File1", "Hello World")
 
-		// delete File
-		require.EqualError(t, driver.Remove("File1"), "file is not a directory")
+			// delete File
+			require.EqualError(t, driver.Remove("File1"), "file is not a directory")
 
-		// File  should not be deleted
-		require.NoError(t, getError(driver.Stat("File1")))
-	})
+			// File  should not be deleted
+			require.NoError(t, getError(driver.Stat("File1")))
+		})
+	*/
 
 	t.Run("delete directory", func(t *testing.T) {
 		driver := setup(t).AsAfero()
@@ -525,7 +528,7 @@ func TestTrash(t *testing.T) {
 			driver = src.AsAfero()
 		}
 
-		require.EqualError(t, driver.Remove(""), "root cannot be trashed")
+		require.EqualError(t, driver.Remove(""), "root cannot be deleted")
 	})
 }
 

@@ -211,7 +211,7 @@ func TestCreateFile(t *testing.T) {
 		// File created?
 		fi, err := driver.Stat("Folder1/File1")
 		require.NoError(t, err)
-		require.Equal(t, "File1", fi.Name())
+		require.Equal(t, "Folder1/File1", fi.Name())
 
 		// Compare File contents
 		r, err := driver.Open("Folder1/File1")
@@ -227,7 +227,7 @@ func TestCreateFile(t *testing.T) {
 		require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 		err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-		require.EqualError(t, err, "unable to create File in `Folder1/File1': `File1' is not a directory")
+		require.EqualError(t, err, "unable to create File in `Folder1/File1': `Folder1/File1' is not a directory")
 	})
 
 	t.Run("empty target", func(t *testing.T) {

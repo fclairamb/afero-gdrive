@@ -3,6 +3,7 @@ module github.com/fclairamb/afero-gdrive
 go 1.12
 
 require (
+	github.com/go-kit/kit v0.10.0
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/hjson/hjson-go v3.1.0+incompatible
 	github.com/spf13/afero v1.4.1

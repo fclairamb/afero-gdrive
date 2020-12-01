@@ -78,7 +78,6 @@ func setup(t *testing.T) *GDriver {
 	require.NoError(t, err)
 
 	driver.Logger = gokit.NewGKLoggerStdout()
-	driver.TrashForDelete = true
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
 

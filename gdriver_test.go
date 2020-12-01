@@ -111,7 +111,7 @@ func TestMakeDirectory(t *testing.T) {
 	})
 
 	t.Run("in existing directory", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(700)))
 
@@ -294,7 +294,7 @@ func TestGetFile(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	t.Run("delete File", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "File1", "Hello World")
 
@@ -306,7 +306,7 @@ func TestDelete(t *testing.T) {
 	})
 
 	t.Run("delete directory", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newDirectory(t, driver, "Folder1")
 
@@ -320,24 +320,24 @@ func TestDelete(t *testing.T) {
 
 func TestDeleteDirectory(t *testing.T) {
 	t.Run("delete File", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newFile(t, driver, "File1", "Hello World")
 
 		// delete File
-		require.EqualError(t, driver.DeleteDirectory("File1"), "file is not a directory")
+		require.EqualError(t, driver.Remove("File1"), "file is not a directory")
 
 		// File  should not be deleted
 		require.NoError(t, getError(driver.Stat("File1")))
 	})
 
 	t.Run("delete directory", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
 		newDirectory(t, driver, "Folder1")
 
 		// delete folder
-		require.NoError(t, driver.DeleteDirectory("Folder1"))
+		require.NoError(t, driver.Remove("Folder1"))
 
 		// Folder1 deleted?
 		require.EqualError(t, getError(driver.Stat("Folder1")), "`Folder1' does not exist")
@@ -389,10 +389,9 @@ func TestListDirectory(t *testing.T) {
 	})
 
 	t.Run("directory does not exist", func(t *testing.T) {
-		driver := setup(t)
+		driver := setup(t).AsAfero()
 
-		_, err := driver.listDirectoryPath("Folder1", 2000)
-
+		_, err := driver.Open("Folder1")
 		require.EqualError(t, err, "`Folder1' does not exist")
 	})
 
@@ -742,9 +741,8 @@ func newFile(t *testing.T, driver afero.Fs, path, contents string) {
 	require.NoError(t, err)
 }
 
-func newDirectory(t *testing.T, driver *GDriver, path string) {
-	err := driver.Mkdir(path, os.FileMode(0))
-	require.NoError(t, err)
+func newDirectory(t *testing.T, driver afero.Fs, path string) {
+	require.NoError(t, driver.Mkdir(path, os.FileMode(0)))
 }
 
 func getError(_ os.FileInfo, err error) error {

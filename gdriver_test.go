@@ -251,7 +251,7 @@ func TestCreateFile(t *testing.T) {
 		// Compare File contents
 		r, err := driver.Open("File1")
 		require.NoError(t, err)
-		defer r.Close()
+		defer func() { require.NoError(t, r.Close()) }()
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
 
@@ -265,7 +265,7 @@ func TestCreateFile(t *testing.T) {
 
 		// Compare File contents
 		r, err = driver.Open("File1")
-		defer r.Close()
+		defer func() { require.NoError(t, r.Close()) }()
 		require.NoError(t, err)
 		received, err = ioutil.ReadAll(r)
 		require.Equal(t, "Hello Universe", string(received))
@@ -627,11 +627,19 @@ func TestOpen(t *testing.T) {
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
 			require.NoError(t, err)
-			defer f.Close()
+			defer func() { require.NoError(t, f.Close()) }()
 
 			data, err := ioutil.ReadAll(f)
 			require.NoError(t, err)
 			require.Equal(t, "Hello World", string(data))
+
+			t.Run("Partial read", func(t *testing.T) {
+				_, err := f.Seek(6, io.SeekStart)
+				require.NoError(t, err)
+				data, err = ioutil.ReadAll(f)
+				require.NoError(t, err)
+				require.Equal(t, "World", string(data))
+			})
 		})
 		t.Run("existing big File", func(t *testing.T) {
 			driver := setup(t).AsAfero()
@@ -645,7 +653,7 @@ func TestOpen(t *testing.T) {
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
 			require.NoError(t, err)
-			defer f.Close()
+			defer func() { require.NoError(t, f.Close()) }()
 
 			data, err := ioutil.ReadAll(f)
 			require.NoError(t, err)

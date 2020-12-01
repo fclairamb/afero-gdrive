@@ -267,7 +267,7 @@ func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, erro
 	request := d.srv.Files.Get(fi.file.Id)
 
 	if offset > 0 {
-		request.Header().Set("Range", fmt.Sprintf("bytes=0-%d", offset))
+		request.Header().Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
 
 	response, err := request.Download()

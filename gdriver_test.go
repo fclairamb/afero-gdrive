@@ -3,10 +3,8 @@ package gdriver
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -99,7 +97,7 @@ func setup(t *testing.T) *GDriver {
 }
 
 func TestMakeDirectory(t *testing.T) {
-	t.Run("simple creation", func(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
 		driver := setup(t)
 
 		err := driver.MkdirAll("Folder1", os.FileMode(700))
@@ -111,7 +109,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.Equal(t, "Folder1", fi.Name())
 	})
 
-	t.Run("simple creation in existent directory", func(t *testing.T) {
+	t.Run("in existing directory", func(t *testing.T) {
 		driver := setup(t)
 
 		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(700)))
@@ -124,7 +122,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("create non existent directories", func(t *testing.T) {
+	t.Run("in non existing directory", func(t *testing.T) {
 		driver := setup(t)
 
 		require.NoError(t, driver.MkdirAll("Folder1/Folder2/Folder3", os.FileMode(0)))
@@ -142,7 +140,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.NoError(t, getError(driver.Stat("Folder1/Folder2/Folder3")))
 	})
 
-	t.Run("creation of existent directory", func(t *testing.T) {
+	t.Run("creation of existing directory", func(t *testing.T) {
 		driver := setup(t)
 
 		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(0))
@@ -150,7 +148,6 @@ func TestMakeDirectory(t *testing.T) {
 
 		err = driver.MkdirAll("Folder1/Folder2", os.FileMode(0))
 		require.NoError(t, err)
-		//require.Equal(t, "Folder1/Folder2", fi.Path())
 	})
 
 	t.Run("create folder as a descendant of a File", func(t *testing.T) {
@@ -195,7 +192,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi.Name())
 
 		// Compare File contents
-		r, err := driver.getFileReaderFromPath("File1")
+		r, err := driver.Open("File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
@@ -216,7 +213,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi.Name())
 
 		// Compare File contents
-		r, err := driver.getFileReaderFromPath("Folder1/File1")
+		r, err := driver.Open("Folder1/File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
@@ -251,8 +248,9 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi1.Name())
 
 		// Compare File contents
-		r, err := driver.getFileReaderFromPath("File1")
+		r, err := driver.Open("File1")
 		require.NoError(t, err)
+		defer r.Close()
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
 
@@ -265,7 +263,8 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi2.Name())
 
 		// Compare File contents
-		r, err = driver.getFileReaderFromPath("File1")
+		r, err = driver.Open("File1")
+		defer r.Close()
 		require.NoError(t, err)
 		received, err = ioutil.ReadAll(r)
 		require.Equal(t, "Hello Universe", string(received))
@@ -287,7 +286,7 @@ func TestGetFile(t *testing.T) {
 	require.Equal(t, "Folder1/File1", fi.Path())
 
 	// Get File contents of an Folder
-	_, err = driver.getFileReaderFromPath("Folder1")
+	_, err = driver.Open("Folder1")
 	require.EqualError(t, err, "`Folder1' is a directory")
 }
 
@@ -397,21 +396,6 @@ func TestListDirectory(t *testing.T) {
 
 		require.EqualError(t, err, "`File1' is not a directory")
 	})
-
-	/*
-		t.Run("callback error", func(t *testing.T) {
-			driver := setup(t)
-
-
-			newFile(t, driver, "File1", "Hello World")
-
-			err := driver.ListDirectory("", func(f *FileInfo) error {
-				return errors.New("Custom Error")
-			})
-			require.IsType(t, CallbackError{}, err)
-			require.EqualError(t, err, "callback throwed an error: Custom Error")
-		})
-	*/
 }
 
 func TestRename(t *testing.T) {
@@ -671,7 +655,7 @@ func TestIsInRoot(t *testing.T) {
 
 		newFile(t, driver, "Folder1/File1", "Hello World")
 
-		fi, err := driver.getFile(driver.rootNode, "Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
+		fi, err := driver.getFile("Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
 		require.NoError(t, err)
 
 		inRoot, parentPath, err := isInRoot(driver.srv, driver.rootNode.file.Id, fi.file, "")
@@ -688,7 +672,7 @@ func TestIsInRoot(t *testing.T) {
 		_, err := driver.Stat("Folder1/File1")
 		// folder2Id := fi.file.Id
 
-		_, err = driver.getFile(driver.rootNode, "Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
+		_, err = driver.getFile("Folder1/File1", googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))))
 		require.NoError(t, err)
 
 		/*
@@ -700,21 +684,22 @@ func TestIsInRoot(t *testing.T) {
 	})
 }
 
-func TestGetHash(t *testing.T) {
+func TestAferoSpecifics(t *testing.T) {
 	driver := setup(t)
-
-	buf := bytes.NewBufferString("Hello World")
-	hash1 := md5.Sum(buf.Bytes())
-	err := writeFile(driver, "File1", buf)
-	require.NoError(t, err)
-
-	_, hash2, err := driver.GetFileHash("File1", HashMethodMD5)
-	require.NoError(t, err)
-
-	hash2, err = hex.DecodeString(string(hash2))
-	require.NoError(t, err)
-
-	require.EqualValues(t, hash1[:], hash2)
+	t.Run("chmod", func(t *testing.T) {
+		_, err := driver.createFile("chmod")
+		require.NoError(t, err)
+		err = driver.Chmod("chmod", os.FileMode(755))
+		require.NoError(t, err)
+	})
+	t.Run("chtimes", func(t *testing.T) {
+		_, err := driver.createFile("chtimes")
+		require.NoError(t, err)
+		aTime := time.Unix(1606435200, 0)
+		mTime := time.Unix(1582675200, 0)
+		err = driver.Chtimes("chtimes", aTime, mTime)
+		require.NoError(t, err)
+	})
 }
 
 func TestOpen(t *testing.T) {
@@ -780,7 +765,7 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, f.Close())
 
 			// Compare File contents
-			r, err := driver.getFileReaderFromPath("Folder1/File1")
+			r, err := driver.Open("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
 			require.Equal(t, "Hello Universe", string(received))
@@ -802,7 +787,7 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, f.Close())
 
 			// Compare File contents
-			r, err := driver.getFileReaderFromPath("Folder1/File1")
+			r, err := driver.Open("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
 			require.Equal(t, "Hello Universe", string(received))

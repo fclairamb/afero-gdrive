@@ -39,9 +39,22 @@ const (
 )
 
 var (
-	fileInfoFields []googleapi.Field
-	listFields     []googleapi.Field
+	fileInfoFields = []googleapi.Field{
+		"createdTime",
+		"id",
+		"mimeType",
+		"modifiedTime",
+		"name",
+		"size",
+	}
+	listFields []googleapi.Field
 )
+
+func init() {
+	listFields = []googleapi.Field{
+		googleapi.Field(fmt.Sprintf("files(%s)", googleapi.CombineFields(fileInfoFields))),
+	}
+}
 
 // ErrNotImplemented is returned when this operation is not (yet) implemented
 var ErrNotImplemented = errors.New("not implemented")
@@ -51,20 +64,6 @@ var ErrNotSupported = errors.New("google drive doesn't support this operation")
 
 // ErrInvalidSeek is returned when the seek operation is not doable
 var ErrInvalidSeek = errors.New("invalid seek offset")
-
-func init() {
-	fileInfoFields = []googleapi.Field{
-		"createdTime",
-		"id",
-		"mimeType",
-		"modifiedTime",
-		"name",
-		"size",
-	}
-	listFields = []googleapi.Field{
-		googleapi.Field(fmt.Sprintf("files(%s)", googleapi.CombineFields(fileInfoFields))),
-	}
-}
 
 // New creates a new Google Drive Driver, client must me an authenticated instance for google drive
 func New(client *http.Client, opts ...Option) (*GDriver, error) {
@@ -106,10 +105,10 @@ func (d *GDriver) AsAfero() afero.Fs {
 func (d *GDriver) SetRootDirectory(path string) (*FileInfo, error) {
 	rootNode, err := getRootNode(d.srv)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to retrieve Drive root: %v", err)
+		return nil, fmt.Errorf("unable to retrieve Drive root: %v", err)
 	}
 
-	file, err := d.getFile(rootNode, path, listFields...)
+	file, err := d.getFileOnRootNode(rootNode, path, listFields...)
 	if err != nil {
 		return nil, err
 	}
@@ -122,12 +121,12 @@ func (d *GDriver) SetRootDirectory(path string) (*FileInfo, error) {
 
 // Stat gives a FileInfo for a File or directory
 func (d *GDriver) Stat(path string) (os.FileInfo, error) {
-	return d.getFile(d.rootNode, path, listFields...)
+	return d.getFile(path, listFields...)
 }
 
 // ListDirectory will get all contents of a directory, calling fileFunc with the collected File information
 func (d *GDriver) ListDirectory(path string, count int) ([]os.FileInfo, error) {
-	file, err := d.getFile(d.rootNode, path, "files(id,name,mimeType)")
+	file, err := d.getFile(path, "files(id,name,mimeType)")
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +137,7 @@ func (d *GDriver) ListDirectory(path string, count int) ([]os.FileInfo, error) {
 
 	files := make([]os.FileInfo, 0)
 
-	for {
+	for len(files) < count {
 		call := d.srv.Files.List().Q(fmt.Sprintf("'%s' in parents and trashed = false", file.file.Id)).Fields(append(listFields, "nextPageToken")...)
 
 		if pageToken != "" {
@@ -227,7 +226,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 
 // DeleteDirectory will delete a directory and its descendants
 func (d *GDriver) DeleteDirectory(path string) error {
-	file, err := d.getFile(d.rootNode, path, "files(id,mimeType)")
+	file, err := d.getFile(path, "files(id,mimeType)")
 	if err != nil {
 		return err
 	}
@@ -243,7 +242,7 @@ func (d *GDriver) DeleteDirectory(path string) error {
 
 // RemoveAll will delete a File or directory, if directory it will also delete its descendants
 func (d *GDriver) RemoveAll(path string) error {
-	file, err := d.getFile(d.rootNode, path)
+	file, err := d.getFile(path)
 	if err != nil {
 		return err
 	}
@@ -305,34 +304,7 @@ func (d *GDriver) getFileWriter(fi *FileInfo) (io.WriteCloser, chan error, error
 }
 
 func (d *GDriver) getFileInfoFromPath(path string) (*FileInfo, error) {
-	return d.getFile(d.rootNode, path, listFields...)
-}
-
-// getFileReaderFromPath gets a File and returns a ReadCloser that can consume the body of the File
-func (d *GDriver) getFileReaderFromPath(path string) (io.ReadCloser, error) {
-	fi, err := d.getFile(d.rootNode, path, listFields...)
-	if err != nil {
-		return nil, err
-	}
-	return d.getFileReader(fi, 0)
-}
-
-// GetFileHash returns the hash of a File with the present method
-func (d *GDriver) GetFileHash(path string, method HashMethod) (*FileInfo, []byte, error) {
-	switch method {
-	case HashMethodMD5:
-	default:
-		return nil, nil, fmt.Errorf("Unknown method %d", method)
-	}
-	file, err := d.getFile(d.rootNode, path, "files(id, md5Checksum)")
-	if err != nil {
-		return nil, nil, err
-	}
-	if file.IsDir() {
-		return nil, nil, FileIsDirectoryError{Path: path}
-	}
-
-	return file, []byte(file.file.Md5Checksum), nil
+	return d.getFile(path, listFields...)
 }
 
 // createFile creates a new file
@@ -372,8 +344,9 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 
 	file, err := d.srv.Files.Create(
 		&drive.File{
-			Name:     sanitizeName(pathParts[amountOfParts-1]),
-			MimeType: mimeTypeFile,
+			Name:        sanitizeName(pathParts[amountOfParts-1]),
+			MimeType:    mimeTypeFile,
+			Description: "Created by https://github.com/fclairamb/afero-gdrive",
 			Parents: []string{
 				parentNode.file.Id,
 			},
@@ -395,7 +368,7 @@ func (d *GDriver) Rename(path string, newName string) error {
 	if amountOfParts <= 0 {
 		return errors.New("new name cannot be empty")
 	}
-	file, err := d.getFile(d.rootNode, path)
+	file, err := d.getFile(path)
 	if err != nil {
 		return err
 	}
@@ -422,7 +395,7 @@ func (d *GDriver) Move(oldPath, newPath string) (*FileInfo, error) {
 		return nil, errors.New("new path cannot be empty")
 	}
 
-	file, err := d.getFile(d.rootNode, oldPath, "files(id,parents)")
+	file, err := d.getFile(oldPath, "files(id,parents)")
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +441,7 @@ func (d *GDriver) trash(fi *FileInfo) error {
 }
 
 func (d *GDriver) trashPath(path string) error {
-	fi, err := d.getFile(d.rootNode, path, "files(id)")
+	fi, err := d.getFile(path, "files(id)")
 	if err != nil {
 		return err
 	}
@@ -477,7 +450,7 @@ func (d *GDriver) trashPath(path string) error {
 
 // ListTrash lists the contents of the trash, if you specify directories it will only list the trash contents of the specified directories
 func (d *GDriver) ListTrash(filePath string, fileFunc func(f *FileInfo) error) error {
-	file, err := d.getFile(d.rootNode, filePath, "files(id,name)")
+	file, err := d.getFile(filePath, "files(id,name)")
 	if err != nil {
 		return err
 	}
@@ -536,7 +509,11 @@ func isInRoot(srv *drive.Service, rootID string, file *drive.File, basePath stri
 	return false, "", nil
 }
 
-func (d *GDriver) getFile(rootNode *FileInfo, path string, fields ...googleapi.Field) (*FileInfo, error) {
+func (d *GDriver) getFile(path string, fields ...googleapi.Field) (*FileInfo, error) {
+	return d.getFileOnRootNode(d.rootNode, path, fields...)
+}
+
+func (d *GDriver) getFileOnRootNode(rootNode *FileInfo, path string, fields ...googleapi.Field) (*FileInfo, error) {
 	spl := strings.FieldsFunc(path, isPathSeperator)
 	return d.getFileByParts(rootNode, spl, fields...)
 }
@@ -604,7 +581,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 	}
 
 	// determinate existent status
-	file, err := d.getFile(d.rootNode, path)
+	file, err := d.getFile(path)
 	var fileExists bool
 
 	if err == nil {
@@ -687,10 +664,29 @@ func (d *GDriver) Create(name string) (afero.File, error) {
 	return file, nil
 }
 
-func (d *GDriver) Chmod(string, os.FileMode) error {
-	return nil
+func (d *GDriver) Chmod(path string, mode os.FileMode) error {
+	fi, err := d.getFile(path)
+	if err != nil {
+		return err
+	}
+	_, err = d.srv.Files.Update(fi.file.Id, &drive.File{
+		Properties: map[string]string{
+			"ftp_file_mode": fmt.Sprintf("%d", mode),
+		},
+	}).Do()
+	return err
 }
 
-func (d *GDriver) Chtimes(string, time.Time, time.Time) error {
-	return nil
+func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
+	fi, err := d.getFile(path)
+	if err != nil {
+		return err
+	}
+	update, err := d.srv.Files.Update(fi.file.Id, &drive.File{
+		ViewedByMeTime: atime.Format(time.RFC3339),
+		ModifiedTime:   mTime.Format(time.RFC3339),
+		// ModifiedByMeTime: mTime.Format(time.RFC3339),
+	}).Do()
+	d.Logger.Info("Chtimes", "updateResponse", update)
+	return err
 }

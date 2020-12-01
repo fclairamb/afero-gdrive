@@ -308,7 +308,7 @@ func (d *GDriver) getFileInfoFromPath(path string) (*FileInfo, error) {
 	return d.getFile(d.rootNode, path, listFields...)
 }
 
-// GetFile gets a File and returns a ReadCloser that can consume the body of the File
+// getFileReaderFromPath gets a File and returns a ReadCloser that can consume the body of the File
 func (d *GDriver) getFileReaderFromPath(path string) (io.ReadCloser, error) {
 	fi, err := d.getFile(d.rootNode, path, listFields...)
 	if err != nil {

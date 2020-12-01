@@ -1,25 +1,28 @@
 package gdriver
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/fclairamb/afero-gdrive/log"
 	"github.com/spf13/afero"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
 	"strings"
 	"time"
 
-	drive "google.golang.org/api/drive/v3"
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 )
 
 // GDriver can be used to access google drive in a traditional File-folder-path pattern
 type GDriver struct {
-	srv      *drive.Service
-	rootNode *FileInfo
+	srv           *drive.Service
+	rootNode      *FileInfo
+	Logger        log.Logger
+	DeleteInTrash bool
 }
 
 // HashMethod is the hashing method to use for GetFileHash
@@ -40,6 +43,15 @@ var (
 	listFields     []googleapi.Field
 )
 
+// ErrNotImplemented is returned when this operation is not (yet) implemented
+var ErrNotImplemented = errors.New("not implemented")
+
+// ErrNotSupported is returned when this operations is not supported by Google Drive
+var ErrNotSupported = errors.New("google drive doesn't support this operation")
+
+// ErrInvalidSeek is returned when the seek operation is not doable
+var ErrInvalidSeek = errors.New("invalid seek offset")
+
 func init() {
 	fileInfoFields = []googleapi.Field{
 		"createdTime",
@@ -56,7 +68,9 @@ func init() {
 
 // New creates a new Google Drive Driver, client must me an authenticated instance for google drive
 func New(client *http.Client, opts ...Option) (*GDriver, error) {
-	driver := &GDriver{}
+	driver := &GDriver{
+		Logger: log.Nothing(),
+	}
 
 	var err error
 
@@ -243,22 +257,64 @@ func (d *GDriver) Remove(path string) error {
 	return d.RemoveAll(path)
 }
 
+func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, error) {
+	if fi.IsDir() {
+		return nil, FileIsDirectoryError{Path: fi.Path()}
+	}
+
+	request := d.srv.Files.Get(fi.file.Id)
+
+	if offset > 0 {
+		request.Header().Set("Range", fmt.Sprintf("bytes=0-%d", offset))
+	}
+
+	response, err := request.Download()
+	if err != nil {
+		return nil, err
+	}
+
+	return response.Body, nil
+}
+
+func (d *GDriver) getFileWriter(fi *FileInfo) (io.WriteCloser, chan error, error) {
+	if fi == nil {
+		return nil, nil, errors.New("fileinfo is nil")
+	}
+	// open a pipe and use the writer part for Write()
+	reader, writer := io.Pipe()
+
+	endErr := make(chan error)
+
+	// the channel is used to notify the Close() or Write() function if something goes wrong
+	go func() {
+		d.Logger.Info("Starting the writer",
+			"fileId", fi.file.Id,
+			"fileName", fi.file.Name,
+		)
+
+		_, err := d.srv.Files.Update(fi.file.Id, nil).Fields(fileInfoFields...).Media(reader).Do()
+
+		endErr <- err
+
+		d.Logger.Info("Writer stopped",
+			"fileId", fi.file.Id,
+			"fileName", fi.file.Name,
+		)
+	}()
+	return writer, endErr, nil
+}
+
+func (d *GDriver) getFileInfoFromPath(path string) (*FileInfo, error) {
+	return d.getFile(d.rootNode, path, listFields...)
+}
+
 // GetFile gets a File and returns a ReadCloser that can consume the body of the File
-func (d *GDriver) GetFile(path string) (*FileInfo, io.ReadCloser, error) {
-	file, err := d.getFile(d.rootNode, path, listFields...)
+func (d *GDriver) getFileReaderFromPath(path string) (io.ReadCloser, error) {
+	fi, err := d.getFile(d.rootNode, path, listFields...)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	if file.IsDir() {
-		return nil, nil, FileIsDirectoryError{Path: path}
-	}
-
-	response, err := d.srv.Files.Get(file.file.Id).Download()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return file, response.Body, nil
+	return d.getFileReader(fi, 0)
 }
 
 // GetFileHash returns the hash of a File with the present method
@@ -281,7 +337,7 @@ func (d *GDriver) GetFileHash(path string, method HashMethod) (*FileInfo, []byte
 
 // putFile uploads a File to the specified path
 // it creates non existing directories
-func (d *GDriver) putFile(filePath string, r io.Reader) (*FileInfo, error) {
+func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
 	if amountOfParts <= 0 {
@@ -299,15 +355,6 @@ func (d *GDriver) putFile(filePath string, r io.Reader) (*FileInfo, error) {
 
 	if existentFile == d.rootNode {
 		return nil, errors.New("root cannot be uploaded")
-	}
-
-	// we found a File, just update this File
-	if existentFile != nil {
-		if err = d.updateFileContents(existentFile.file.Id, r); err != nil {
-			return nil, err
-		}
-
-		return existentFile, nil
 	}
 
 	// create a new File
@@ -332,7 +379,7 @@ func (d *GDriver) putFile(filePath string, r io.Reader) (*FileInfo, error) {
 				parentNode.file.Id,
 			},
 		},
-	).Fields(fileInfoFields...).Media(r).Do()
+	).Fields(fileInfoFields...).Media(bytes.NewReader([]byte{})).Do()
 	if err != nil {
 		return nil, err
 	}
@@ -341,21 +388,6 @@ func (d *GDriver) putFile(filePath string, r io.Reader) (*FileInfo, error) {
 		parentPath: path.Join(pathParts[:amountOfParts-1]...),
 	}, nil
 }
-
-func (d *GDriver) updateFileContents(id string, r io.Reader) error {
-	// update File
-	_, err := d.srv.Files.Update(id, nil).Fields(fileInfoFields...).Media(r).Do()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-/*
-func (d *GDriver) Rename(oldname, newname string) error {
-	panic("implement me")
-}
-*/
 
 // Rename renames a File or directory to a new name in the same folder
 func (d *GDriver) Rename(path string, newName string) error {
@@ -524,7 +556,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 	var lastFile *drive.File
 	for i := 0; i < amountOfParts; i++ {
 		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", lastID, sanitizeName(pathParts[i]))
-		log.Println("query:" + query)
+		// Logger.Println("query:" + query)
 		call := d.srv.Files.List().Q(query)
 
 		// if we are not at the last part
@@ -549,7 +581,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 		}
 		lastFile = files.Files[0]
 		lastID = lastFile.Id
-		log.Printf("=>%s = %s\n", path.Join(pathParts[:i+1]...), lastID)
+		// Logger.Printf("=>%s = %s\n", path.Join(pathParts[:i+1]...), lastID)
 	}
 
 	return &FileInfo{
@@ -565,12 +597,6 @@ func (d *GDriver) Open(name string) (afero.File, error) {
 
 // OpenFile opens a File in the traditional os.Open way
 func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File, error) {
-	// plausibility check
-	/*
-		if flag&os.O_RDONLY != 0 && flag&os.O_WRONLY != 0 {
-			return nil, errors.New("unable to open a File read and write at the same time")
-		}
-	*/
 	if path == "" {
 		return nil, errors.New("path cannot be empty")
 	}
@@ -581,7 +607,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 
 	// determinate existent status
 	file, err := d.getFile(d.rootNode, path)
-	fileExists := false
+	var fileExists bool
 
 	if err == nil {
 		fileExists = true
@@ -602,14 +628,22 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 		}
 	}
 
+	// If we're in read-only
 	if flag&os.O_WRONLY == 0 {
-		// File must exist
 		if !fileExists {
 			return nil, FileNotExistError{Path: path}
 		}
+
+		reader, err := d.getFileReader(file, 0)
+
+		if err != nil {
+			return nil, err
+		}
+
 		return &File{
-			Driver:   d,
-			FileInfo: file,
+			Driver:     d,
+			FileInfo:   file,
+			streamRead: reader,
 		}, nil
 	}
 
@@ -617,16 +651,28 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 		// File can exist
 		if !fileExists {
 			// if File not exists, and we can not create the File
-			if flag&os.O_CREATE == 0 {
+			if flag&os.O_CREATE != 0 {
+				file, err = d.createFile(path)
+				if err != nil {
+					return nil, err
+				}
+			} else {
 				return nil, FileNotExistError{Path: path}
 			}
 		}
+
+		writer, endErr, err := d.getFileWriter(file)
+		if err != nil {
+			return nil, err
+		}
+
 		// File exists
 		return &File{
-			write:    true,
-			Driver:   d,
-			Path:     path,
-			FileInfo: file,
+			Driver:         d,
+			Path:           path,
+			FileInfo:       file,
+			streamWrite:    writer,
+			streamWriteEnd: endErr,
 		}, nil
 	}
 	return nil, fmt.Errorf("unknown flag: %d", flag)

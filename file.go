@@ -2,10 +2,11 @@ package gdriver
 
 import (
 	"errors"
+	"fmt"
 	"github.com/spf13/afero"
 	"io"
+	"log"
 	"os"
-	"sync"
 )
 
 func (f *File) AsAfero() afero.File {
@@ -15,18 +16,54 @@ func (f *File) AsAfero() afero.File {
 type File struct {
 	Driver *GDriver
 	*FileInfo
-	write    bool
-	reader   io.ReadCloser
-	once     sync.Once
-	Path     string
-	writer   *io.PipeWriter
-	mu       sync.Mutex
-	doneChan chan struct{}
-	putError error
+	Path           string
+	streamRead     io.ReadCloser
+	streamWrite    io.WriteCloser
+	streamWriteEnd chan error
+	streamOffset   int64
 }
 
 func (f *File) Seek(offset int64, whence int) (int64, error) {
-	panic("implement me")
+	// Write seek is not supported, I'm not 100% sure it can be implemented
+	if f.streamWrite != nil {
+		return 0, ErrNotImplemented
+	}
+
+	// Read seek has its own implementation
+	if f.streamRead != nil {
+		return f.seekRead(offset, whence)
+	}
+
+	// Not having a stream
+	return 0, afero.ErrFileClosed
+}
+
+func (f *File) seekRead(offset int64, whence int) (int64, error) {
+	startByte := int64(0)
+
+	switch whence {
+	case io.SeekStart:
+		startByte = offset
+	case io.SeekCurrent:
+		startByte = f.streamOffset + offset
+	case io.SeekEnd:
+		startByte = f.FileInfo.Size() - offset
+	}
+
+	if err := f.streamRead.Close(); err != nil {
+		return 0, fmt.Errorf("couldn't close previous stream: %v", err)
+	}
+	f.streamRead = nil
+
+	if startByte < 0 {
+		return startByte, ErrInvalidSeek
+	}
+
+	var err error
+
+	f.streamRead, err = f.Driver.getFileReader(f.FileInfo, startByte)
+
+	return startByte, err
 }
 
 func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
@@ -53,70 +90,36 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 }
 
 func (f *File) Truncate(int64) error {
-	return errors.New("not implemented")
+	return ErrNotSupported
 }
 
 func (f *File) Info() *FileInfo {
 	return f.FileInfo
 }
 
-func (f *File) getReader() error {
-	var lastErr error
-	f.once.Do(func() {
-		response, err := f.Driver.srv.Files.Get(f.file.Id).Download()
-		if err != nil {
-			lastErr = err
-			return
-		}
-		f.reader = response.Body
-	})
-	return lastErr
-}
-
 func (f *File) Read(p []byte) (int, error) {
-	if f.write {
+	if f.streamWrite != nil {
 		return 0, errors.New("open the File with O_RONLY for writing")
 	}
-	if err := f.getReader(); err != nil {
-		return 0, err
-	}
-	return f.reader.Read(p)
-}
-
-func (f *File) getWriter() error {
-	f.mu.Lock()
-	if f.doneChan == nil {
-		var reader io.Reader
-		// open a pipe and use the writer part for Write()
-		reader, f.writer = io.Pipe()
-		// the channel is used to notify the Close() or Write() function if something goes wrong
-		f.doneChan = make(chan struct{})
-		go func() {
-			if f.FileInfo == nil {
-				f.FileInfo, f.putError = f.Driver.putFile(f.Path, reader)
-			} else {
-				f.putError = f.Driver.updateFileContents(f.FileInfo.file.Id, reader)
-			}
-			f.doneChan <- struct{}{}
-		}()
-	}
-	err := f.putError
-	f.mu.Unlock()
-	return err
+	n, err := f.streamRead.Read(p)
+	f.streamOffset += int64(n)
+	return n, err
 }
 
 func (f *File) Write(p []byte) (int, error) {
-	if !f.write {
+	if f.streamRead != nil {
 		return 0, errors.New("open the File with O_WRONLY for writing")
 	}
-	if err := f.getWriter(); err != nil {
-		return 0, err
-	}
-	return f.writer.Write(p)
+	n, err := f.streamWrite.Write(p)
+	f.streamOffset += int64(n)
+	return n, err
 }
 
 func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
-	panic("implement me")
+	if _, err := f.Seek(off, 0); err != nil {
+		return 0, err
+	}
+	return f.Write(p)
 }
 
 func (f *File) WriteString(s string) (ret int, err error) {
@@ -124,21 +127,21 @@ func (f *File) WriteString(s string) (ret int, err error) {
 }
 
 func (f *File) Close() error {
-	if f.write {
-		closeErr := f.writer.Close()
-		if f.doneChan != nil {
-			<-f.doneChan
-			if err := f.putError; err != nil {
-				return err
-			}
+	if f.streamWrite != nil {
+		err := f.streamWrite.Close()
+		if err != nil {
+			log.Println("Closing issue: ", err)
 		}
+		closeErr := <-f.streamWriteEnd
+		f.streamWrite = nil
+		f.streamWriteEnd = nil
 		return closeErr
-	} else {
-		if err := f.getReader(); err != nil {
-			return err
-		}
-		return f.reader.Close()
+	} else if f.streamRead != nil {
+		err := f.streamRead.Close()
+		f.streamRead = nil
+		return err
 	}
+	return nil
 }
 
 func (f *File) Stat() (os.FileInfo, error) {

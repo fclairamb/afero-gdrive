@@ -3,6 +3,7 @@ module github.com/fclairamb/afero-gdrive
 go 1.12
 
 require (
+	github.com/go-kit/kit v0.8.0
 	github.com/hjson/hjson-go v3.0.0+incompatible
 	github.com/spf13/afero v1.4.1
 	github.com/stretchr/testify v1.4.0

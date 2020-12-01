@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fclairamb/afero-gdrive/log/gokit"
 	"io"
 	"io/ioutil"
 	"log"
@@ -70,19 +71,18 @@ func setup(t *testing.T) *GDriver {
 
 	helper.Token = new(oauth2.Token)
 
-	require.NoError(t, json.Unmarshal([]byte(token), helper.Token))
+	require.NoError(t, json.Unmarshal(token, helper.Token))
 
 	client, err = helper.NewHTTPClient(context.Background())
 	require.NoError(t, err)
 
 	driver, err = New(client)
-
 	require.NoError(t, err)
 
-	// prepare test directory
+	driver.Logger = gokit.NewGKLoggerStdout()
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
-	driver.DeleteDirectory(fullPath)
+
 	err = driver.MkdirAll(fullPath, os.FileMode(700))
 	require.NoError(t, err)
 
@@ -195,7 +195,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi.Name())
 
 		// Compare File contents
-		_, r, err := driver.GetFile("File1")
+		r, err := driver.getFileReaderFromPath("File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
@@ -216,7 +216,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi.Name())
 
 		// Compare File contents
-		_, r, err := driver.GetFile("Folder1/File1")
+		r, err := driver.getFileReaderFromPath("Folder1/File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
@@ -251,7 +251,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi1.Name())
 
 		// Compare File contents
-		_, r, err := driver.GetFile("File1")
+		r, err := driver.getFileReaderFromPath("File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
 		require.Equal(t, "Hello World", string(received))
@@ -265,7 +265,7 @@ func TestPutFile(t *testing.T) {
 		require.Equal(t, "File1", fi2.Name())
 
 		// Compare File contents
-		_, r, err = driver.GetFile("File1")
+		r, err = driver.getFileReaderFromPath("File1")
 		require.NoError(t, err)
 		received, err = ioutil.ReadAll(r)
 		require.Equal(t, "Hello Universe", string(received))
@@ -277,15 +277,17 @@ func TestGetFile(t *testing.T) {
 
 	newFile(t, driver, "Folder1/File1", "Hello World")
 
-	// Compare File contents
-	fi, r, err := driver.GetFile("Folder1/File1")
+	// Compare File content
+	fi, err := driver.getFileInfoFromPath("Folder1/File1")
+	require.NoError(t, err)
+	r, err := driver.getFileReader(fi, 0)
 	require.NoError(t, err)
 	received, err := ioutil.ReadAll(r)
 	require.Equal(t, "Hello World", string(received))
 	require.Equal(t, "Folder1/File1", fi.Path())
 
 	// Get File contents of an Folder
-	_, _, err = driver.GetFile("Folder1")
+	_, err = driver.getFileReaderFromPath("Folder1")
 	require.EqualError(t, err, "`Folder1' is a directory")
 }
 
@@ -778,7 +780,7 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, f.Close())
 
 			// Compare File contents
-			_, r, err := driver.GetFile("Folder1/File1")
+			r, err := driver.getFileReaderFromPath("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
 			require.Equal(t, "Hello Universe", string(received))
@@ -800,7 +802,7 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, f.Close())
 
 			// Compare File contents
-			_, r, err := driver.GetFile("Folder1/File1")
+			r, err := driver.getFileReaderFromPath("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
 			require.Equal(t, "Hello Universe", string(received))

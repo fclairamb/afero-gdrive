@@ -173,7 +173,7 @@ func TestFileFolderMixup(t *testing.T) {
 	require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-	require.EqualError(t, err, "unable to create File in `Folder1/File1': `File1' is not a directory")
+	require.EqualError(t, err, "unable to create File in `Folder1/File1': `Folder1/File1' is not a directory")
 }
 
 func TestCreateFile(t *testing.T) {

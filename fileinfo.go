@@ -1,4 +1,4 @@
-package gdriver
+package gdriver // nolint: golint
 
 import (
 	"os"

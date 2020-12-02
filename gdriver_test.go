@@ -1,3 +1,4 @@
+// nolint: funlen
 package gdriver
 
 import (
@@ -7,8 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/fclairamb/afero-gdrive/log/gokit"
-	"github.com/spf13/afero"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,25 +15,31 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/fclairamb/afero-gdrive/log/gokit"
 	"github.com/fclairamb/afero-gdrive/oauthhelper"
 	"github.com/hjson/hjson-go"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 )
 
 var (
-	prefix string
+	prefix   string
+	initOnce sync.Once
 )
 
-func init() {
+func varInit() {
 	prefix = time.Now().UTC().Format("20060102_150405.000000")
 }
 
 func setup(t *testing.T) *GDriver {
+	initOnce.Do(varInit)
+
 	env, err := ioutil.ReadFile(".env.json")
 	if err != nil {
 		if !os.IsNotExist(err) {

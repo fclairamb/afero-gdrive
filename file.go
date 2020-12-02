@@ -1,27 +1,31 @@
-package gdriver
+package gdriver // nolint: golint
 
 import (
 	"fmt"
-	"github.com/spf13/afero"
 	"io"
 	"log"
 	"os"
+
+	"github.com/spf13/afero"
 )
 
+// AsAfero provides a cast to afero interface for easier testing
 func (f *File) AsAfero() afero.File {
 	return f
 }
 
+// File represents the managed file structure
 type File struct {
-	Driver *GDriver
 	*FileInfo
 	Path           string
+	driver         *GDriver
 	streamRead     io.ReadCloser
 	streamWrite    io.WriteCloser
 	streamWriteEnd chan error
 	streamOffset   int64
 }
 
+// Seek sets the offset for the next Read or Write to offset
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	// Write seek is not supported by the google drive API.
 	if f.streamWrite != nil {
@@ -61,7 +65,7 @@ func (f *File) seekRead(offset int64, whence int) (int64, error) {
 
 	var err error
 
-	f.streamRead, err = f.Driver.getFileReader(f.FileInfo, startByte)
+	f.streamRead, err = f.driver.getFileReader(f.FileInfo, startByte)
 
 	return startByte, err
 }
@@ -77,7 +81,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 
 // Readdir provides a list of file information
 func (f *File) Readdir(count int) ([]os.FileInfo, error) {
-	return f.Driver.listDirectory(f.FileInfo, count)
+	return f.driver.listDirectory(f.FileInfo, count)
 }
 
 // Readdirnames provides a list of directory names

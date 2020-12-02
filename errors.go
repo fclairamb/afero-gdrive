@@ -1,4 +1,4 @@
-package gdriver
+package gdriver // nolint: golint
 
 import (
 	"errors"
@@ -14,19 +14,26 @@ var ErrNotSupported = errors.New("google drive doesn't support this operation")
 // ErrInvalidSeek is returned when the seek operation is not doable
 var ErrInvalidSeek = errors.New("invalid seek offset")
 
-var ErrReadAndWriteNotSupported = errors.New("O_RDWR mode is not supported")
+// ErrReadAndWriteNotSupported is returned when the O_RDWR flag is passed
+var ErrReadAndWriteNotSupported = errors.New("option O_RDWR is not supported")
 
+// ErrReadOnly means a write operation was performed on a file opened in read-only
 var ErrReadOnly = errors.New("we're in a read-only mode")
 
+// ErrWriteOnly means a write operation was performed on a file opened in write-only
 var ErrWriteOnly = errors.New("we're in write-only mode")
 
+// ErrOpenMissingFlag is returned when neither read nor write flags are passed
 var ErrOpenMissingFlag = errors.New("you need to specify a read or write flag")
 
+// ErrEmptyPath is returned when an empty path is sent
 var ErrEmptyPath = errors.New("empty path")
 
+// ErrForbiddenOnRoot is returned when an operation is performed on the root node
 var ErrForbiddenOnRoot = errors.New("forbidden root directory")
 
-var InternalNilError = errors.New("internal nil error")
+// errInternalNil is an internal error and it should never be reported
+var errInternalNil = errors.New("internal nil error")
 
 // FileNotExistError will be thrown if a File was not found
 type FileNotExistError struct {
@@ -71,6 +78,8 @@ func (e FileIsNotDirectoryError) Error() string {
 	return "file is not a directory"
 }
 
+// FileHasMultipleEntriesError will be returned when the same file name is present multiple times
+// in the same directory.
 type FileHasMultipleEntriesError struct {
 	Path string
 }
@@ -79,6 +88,8 @@ func (e FileHasMultipleEntriesError) Error() string {
 	return fmt.Sprintf("multiple entries found for `%s'", e.Path)
 }
 
+// NoFileInformationError is returned when a given directory didn't provide any file info.
+// This error is bit confusing and needs reviewing.
 type NoFileInformationError struct {
 	Fi   *FileInfo
 	Path string
@@ -87,7 +98,7 @@ type NoFileInformationError struct {
 func (e NoFileInformationError) Error() string {
 	if e.Path == "" {
 		return fmt.Sprintf("no file information present in %s : \"%s\"", e.Fi.file.Id, e.Fi.file.Name)
-	} else {
-		return fmt.Sprintf("no file information present in path \"%s\"", e.Path)
 	}
+
+	return fmt.Sprintf("no file information present in path \"%s\"", e.Path)
 }

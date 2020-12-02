@@ -1,21 +1,23 @@
+// Package gdriver provides an afero Fs interface to Google Drive API
 package gdriver
 
 import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/fclairamb/afero-gdrive/log"
-	"github.com/spf13/afero"
-	"google.golang.org/api/option"
 	"io"
 	"net/http"
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/fclairamb/afero-gdrive/log"
+	"github.com/spf13/afero"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 )
 
 // GDriver can be used to access google drive in a traditional File-folder-path pattern
@@ -44,17 +46,20 @@ var (
 		"name",
 		"size",
 	}
-	listFields []googleapi.Field
+	listFields     []googleapi.Field
+	sharedInitOnce sync.Once
 )
 
-func init() {
+func sharedInit() {
 	listFields = []googleapi.Field{
 		googleapi.Field(fmt.Sprintf("files(%s)", googleapi.CombineFields(fileInfoFields))),
 	}
 }
 
-// New creates a new Google Drive Driver, client must me an authenticated instance for google drive
+// New creates a new Google Drive driver, client must me an authenticated instance for google drive
 func New(client *http.Client, opts ...Option) (*GDriver, error) {
+	sharedInitOnce.Do(sharedInit)
+
 	driver := &GDriver{
 		Logger: log.Nothing(),
 	}
@@ -63,7 +68,7 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 
 	driver.srv, err = drive.NewService(context.Background(), option.WithHTTPClient(client))
 	if err != nil {
-		return nil, fmt.Errorf("Unable to retrieve Drive client: %v", err)
+		return nil, fmt.Errorf("unable to retrieve Drive client: %w", err)
 	}
 
 	if _, err = driver.SetRootDirectory(""); err != nil {
@@ -84,7 +89,7 @@ func (d *GDriver) Name() string {
 	return "gdrive"
 }
 
-// AsAfero provides a simple cast for easy testing
+// AsAfero provides a cast to afero interface for easier testing
 func (d *GDriver) AsAfero() afero.Fs {
 	return d
 }
@@ -187,40 +192,47 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 		}
 
 		if files == nil {
-			return nil, &NoFileInformationError{Path: path.Join(pathParts[:i+1]...)}
+			return nil, &NoFileInformationError{Fi: parentNode, Path: path.Join(pathParts[:i+1]...)}
 		}
 
-		if len(files.Files) <= 0 {
-			// File not found => create directory
-			if !parentNode.IsDir() {
-				return nil, FileIsNotDirectoryError{
-					Fi:   parentNode,
-					Path: path.Join(pathParts[:i]...),
+		switch len(files.Files) {
+		case 0:
+			{
+				// File not found => create directory
+				if !parentNode.IsDir() {
+					return nil, FileIsNotDirectoryError{
+						Fi:   parentNode,
+						Path: path.Join(pathParts[:i]...),
+					}
+				}
+				var createdDir *drive.File
+
+				createdDir, err = d.srv.Files.Create(&drive.File{
+					Name:     sanitizeName(pathParts[i]),
+					MimeType: mimeTypeFolder,
+					Parents: []string{
+						parentNode.file.Id,
+					},
+				}).Fields(fileInfoFields...).Do()
+				if err != nil {
+					return nil, err
+				}
+
+				parentNode = &FileInfo{
+					file:       createdDir,
+					parentPath: path.Join(pathParts[:i]...),
 				}
 			}
-			var createdDir *drive.File
-
-			createdDir, err = d.srv.Files.Create(&drive.File{
-				Name:     sanitizeName(pathParts[i]),
-				MimeType: mimeTypeFolder,
-				Parents: []string{
-					parentNode.file.Id,
-				},
-			}).Fields(fileInfoFields...).Do()
-			if err != nil {
-				return nil, err
+		case 1:
+			{
+				parentNode = &FileInfo{
+					file:       files.Files[0],
+					parentPath: path.Join(pathParts[:i]...),
+				}
 			}
-
-			parentNode = &FileInfo{
-				file:       createdDir,
-				parentPath: path.Join(pathParts[:i]...),
-			}
-		} else if len(files.Files) > 1 {
-			return nil, &FileHasMultipleEntriesError{Path: path.Join(pathParts[:i+1]...)}
-		} else { // if len(files.Files) == 1
-			parentNode = &FileInfo{
-				file:       files.Files[0],
-				parentPath: path.Join(pathParts[:i]...),
+		default:
+			{
+				return nil, &FileHasMultipleEntriesError{Path: path.Join(pathParts[:i+1]...)}
 			}
 		}
 	}
@@ -301,7 +313,7 @@ func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, erro
 
 func (d *GDriver) getFileWriter(fi *FileInfo) (io.WriteCloser, chan error, error) {
 	if fi == nil {
-		return nil, nil, InternalNilError
+		return nil, nil, errInternalNil
 	}
 	// open a pipe and use the writer part for Write()
 	reader, writer := io.Pipe()
@@ -425,7 +437,8 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 
 		parentNode = dir
 		if !parentNode.IsDir() {
-			//return fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			// Was: return fmt.Errorf("unable to create File in `%s': `%s' is not a directory",
+			// path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
 			return &FileIsNotDirectoryError{Fi: parentNode}
 		}
 	}
@@ -561,7 +574,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 
 		// if we are not at the last part
 		if i == lastPart {
-			if len(fields) <= 0 {
+			if len(fields) == 0 {
 				call = call.Fields("files(id)")
 			} else {
 				call = call.Fields(fields...)
@@ -575,7 +588,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 			return nil, err
 		}
 
-		if files == nil || len(files.Files) <= 0 {
+		if files == nil || len(files.Files) == 0 {
 			return nil, FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
 		}
 
@@ -612,20 +625,27 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 	file, err := d.getFileInfoFromPath(path)
 	var fileExists bool
 
-	if err == nil {
-		fileExists = true
+	switch {
+	case err == nil:
+		{
+			fileExists = true
 
-		if file.IsDir() {
-			return &File{
-				Driver:   d,
-				Path:     path,
-				FileInfo: file,
-			}, nil
+			if file.IsDir() {
+				return &File{
+					driver:   d,
+					Path:     path,
+					FileInfo: file,
+				}, nil
+			}
 		}
-	} else if IsNotExist(err) {
-		fileExists = false
-	} else {
-		return nil, err
+	case IsNotExist(err):
+		{
+			fileExists = false
+		}
+	default:
+		{
+			return nil, err
+		}
 	}
 
 	// if we are not allowed to create a File
@@ -637,26 +657,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 	}
 
 	// If we're in read-only
-	if flag&os.O_WRONLY == 0 {
-		if !fileExists {
-			return nil, FileNotExistError{Path: path}
-		}
-
-		reader, errReader := d.getFileReader(file, 0)
-
-		if errReader != nil {
-			return nil, errReader
-		}
-
-		return &File{
-			Driver:     d,
-			FileInfo:   file,
-			streamRead: reader,
-		}, nil
-	}
-
 	if flag&os.O_WRONLY != 0 {
-		// File can exist
 		if !fileExists {
 			// if File not exists, and we can not create the File
 			if flag&os.O_CREATE != 0 {
@@ -669,22 +670,39 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 			}
 		}
 
-		writer, endErr, err := d.getFileWriter(file)
-		if err != nil {
-			return nil, err
-		}
-
-		// File exists
-		return &File{
-			Driver:         d,
-			Path:           path,
-			FileInfo:       file,
-			streamWrite:    writer,
-			streamWriteEnd: endErr,
-		}, nil
+		return d.openFileWrite(file, path)
 	}
 
-	return nil, ErrOpenMissingFlag
+	return d.openFileRead(file)
+}
+
+func (d *GDriver) openFileRead(file *FileInfo) (afero.File, error) {
+	reader, errReader := d.getFileReader(file, 0)
+
+	if errReader != nil {
+		return nil, errReader
+	}
+
+	return &File{
+		driver:     d,
+		FileInfo:   file,
+		streamRead: reader,
+	}, nil
+}
+
+func (d *GDriver) openFileWrite(file *FileInfo, path string) (afero.File, error) {
+	writer, endErr, err := d.getFileWriter(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return &File{
+		driver:         d,
+		Path:           path,
+		FileInfo:       file,
+		streamWrite:    writer,
+		streamWriteEnd: endErr,
+	}, nil
 }
 
 // Create creates a file in the filesystem, returning the file and an
@@ -702,7 +720,7 @@ func (d *GDriver) Create(name string) (afero.File, error) {
 	return file, nil
 }
 
-//Chmod changes the mode of the named file to mode.
+// Chmod changes the mode of the named file to mode.
 func (d *GDriver) Chmod(path string, mode os.FileMode) error {
 	fi, err := d.getFile(path)
 	if err != nil {
@@ -718,7 +736,7 @@ func (d *GDriver) Chmod(path string, mode os.FileMode) error {
 	return err
 }
 
-//Chtimes changes the access and modification times of the named file
+// Chtimes changes the access and modification times of the named file
 func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 	fi, err := d.getFile(path)
 	if err != nil {

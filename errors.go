@@ -59,5 +59,5 @@ type FileIsNotDirectoryError struct {
 }
 
 func (e FileIsNotDirectoryError) Error() string {
-	return fmt.Sprintf("file is not a directory")
+	return "file is not a directory"
 }

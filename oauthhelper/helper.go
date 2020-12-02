@@ -62,7 +62,7 @@ func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) 
 	if err != nil {
 		return nil, fmt.Errorf("Authenticate error: %v", err)
 	}
-	tok, err := config.Exchange(oauth2.NoContext, code)
+	tok, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to retrieve token from web %v", err)
 	}

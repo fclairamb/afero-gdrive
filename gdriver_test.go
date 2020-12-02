@@ -195,6 +195,7 @@ func TestCreateFile(t *testing.T) {
 		r, err := driver.Open("File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
+		require.NoError(t, err)
 		require.Equal(t, "Hello World", string(received))
 	})
 
@@ -216,6 +217,7 @@ func TestCreateFile(t *testing.T) {
 		r, err := driver.Open("Folder1/File1")
 		require.NoError(t, err)
 		received, err := ioutil.ReadAll(r)
+		require.NoError(t, err)
 		require.Equal(t, "Hello World", string(received))
 	})
 
@@ -252,6 +254,7 @@ func TestCreateFile(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { require.NoError(t, r.Close()) }()
 		received, err := ioutil.ReadAll(r)
+		require.NoError(t, err)
 		require.Equal(t, "Hello World", string(received))
 
 		// create File
@@ -267,6 +270,7 @@ func TestCreateFile(t *testing.T) {
 		defer func() { require.NoError(t, r.Close()) }()
 		require.NoError(t, err)
 		received, err = ioutil.ReadAll(r)
+		require.NoError(t, err)
 		require.Equal(t, "Hello Universe", string(received))
 	})
 }
@@ -280,6 +284,7 @@ func TestGetFile(t *testing.T) {
 	fi, err := driver.Open("Folder1/File1")
 	require.NoError(t, err)
 	received, err := ioutil.ReadAll(fi)
+	require.NoError(t, err)
 	require.Equal(t, "Hello World", string(received))
 	require.Equal(t, "Folder1/File1", fi.Name())
 
@@ -607,6 +612,7 @@ func TestIsInRoot(t *testing.T) {
 		newFile(t, driver, "Folder1/File1", "Hello World")
 		require.NoError(t, driver.Mkdir("Folder2", os.FileMode(0)))
 		_, err := driver.Stat("Folder1/File1")
+		require.NoError(t, err)
 
 		_, err = driver.Open("Folder1/File1")
 		require.NoError(t, err)
@@ -701,6 +707,7 @@ func TestOpen(t *testing.T) {
 			r, err := driver.Open("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
+			require.NoError(t, err)
 			require.Equal(t, "Hello Universe", string(received))
 		})
 		t.Run("non-existing File", func(t *testing.T) {
@@ -714,6 +721,7 @@ func TestOpen(t *testing.T) {
 			driver := setup(t).AsAfero()
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY|os.O_CREATE, os.FileMode(0))
+			require.NoError(t, err)
 			n, err := io.WriteString(f, "Hello Universe")
 			require.NoError(t, err)
 			require.Equal(t, 14, n)
@@ -723,6 +731,7 @@ func TestOpen(t *testing.T) {
 			r, err := driver.Open("Folder1/File1")
 			require.NoError(t, err)
 			received, err := ioutil.ReadAll(r)
+			require.NoError(t, err)
 			require.Equal(t, "Hello Universe", string(received))
 		})
 	})

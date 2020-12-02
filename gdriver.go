@@ -2,10 +2,12 @@ package gdriver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/fclairamb/afero-gdrive/log"
 	"github.com/spf13/afero"
+	"google.golang.org/api/option"
 	"io"
 	"net/http"
 	"os"
@@ -60,7 +62,7 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 
 	var err error
 
-	driver.srv, err = drive.New(client)
+	driver.srv, err = drive.NewService(context.Background(), option.WithHTTPClient(client))
 	if err != nil {
 		return nil, fmt.Errorf("Unable to retrieve Drive client: %v", err)
 	}
@@ -146,18 +148,6 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 		}
 	}
 	return files, nil
-}
-
-// listDirectoryPath will get all contents of a directory, calling fileFunc with the collected File information
-func (d *GDriver) listDirectoryPath(path string, count int) ([]os.FileInfo, error) {
-	file, err := d.getFile(path, "files(id,mimeType)")
-	if err != nil {
-		return nil, err
-	}
-	if !file.IsDir() {
-		return nil, FileIsNotDirectoryError{fi: file}
-	}
-	return d.listDirectory(file, count)
 }
 
 // MakeDirectory creates a directory for the specified path, it will create non existent directores automatically

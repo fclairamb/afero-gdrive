@@ -57,7 +57,7 @@ func setup(t *testing.T) *GDriver {
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Authenticate: func(url string) (string, error) {
-			return "", fmt.Errorf("please specify a valid token.json File")
+			return "", ErrNotSupported
 		},
 	}
 	var client *http.Client

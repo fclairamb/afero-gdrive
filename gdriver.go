@@ -196,7 +196,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 				parentPath: path.Join(pathParts[:i]...),
 			}
 		} else if len(files.Files) > 1 {
-			return nil, fmt.Errorf("multiple entries found for `%s'", path.Join(pathParts[:i+1]...))
+			return nil, &FileHasMultipleEntriesError{Path: path.Join(pathParts[:i+1]...)}
 		} else { // if len(files.Files) == 1
 			parentNode = &FileInfo{
 				file:       files.Files[0],
@@ -240,7 +240,7 @@ func (d *GDriver) RemoveAll(path string) error {
 		return err
 	}
 	if file == d.rootNode {
-		return errors.New("root cannot be deleted")
+		return ErrForbiddenOnRoot
 	}
 	return d.deleteFile(file)
 }
@@ -270,7 +270,7 @@ func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, erro
 
 func (d *GDriver) getFileWriter(fi *FileInfo) (io.WriteCloser, chan error, error) {
 	if fi == nil {
-		return nil, nil, errors.New("fileinfo is nil")
+		return nil, nil, InternalNilError
 	}
 	// open a pipe and use the writer part for Write()
 	reader, writer := io.Pipe()
@@ -309,7 +309,7 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
 	if amountOfParts <= 0 {
-		return nil, errors.New("path cannot be empty")
+		return nil, ErrEmptyPath
 	}
 
 	// check if there is already a File
@@ -322,15 +322,15 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	}
 
 	if existentFile == d.rootNode {
-		return nil, errors.New("root cannot be uploaded")
+		return nil, ErrForbiddenOnRoot
 	}
 
 	// create a new File
 	parentNode := d.rootNode
 	if amountOfParts > 1 {
-		dir, err := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
-		if err != nil {
-			return nil, err
+		dir, errMkDir := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
+		if errMkDir != nil {
+			return nil, errMkDir
 		}
 		parentNode = dir
 
@@ -367,7 +367,7 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 	pathParts := strings.FieldsFunc(newPath, isPathSeperator)
 	amountOfParts := len(pathParts)
 	if amountOfParts <= 0 {
-		return errors.New("new path cannot be empty")
+		return ErrEmptyPath
 	}
 
 	file, err := d.getFile(oldPath, "files(id,parents)")
@@ -376,14 +376,14 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 	}
 
 	if file == d.rootNode {
-		return errors.New("root cannot be moved")
+		return ErrForbiddenOnRoot
 	}
 
 	parentNode := d.rootNode
 	if amountOfParts > 1 {
-		dir, err := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
-		if err != nil {
-			return err
+		dir, errMkDir := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
+		if errMkDir != nil {
+			return errMkDir
 		}
 		parentNode = dir
 
@@ -527,7 +527,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 			return nil, FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
 		}
 		if len(files.Files) > 1 {
-			return nil, fmt.Errorf("multiple entries found for `%s'", path.Join(pathParts[:i+1]...))
+			return nil, &FileHasMultipleEntriesError{Path: path.Join(pathParts[:i+1]...)}
 		}
 		lastFile = files.Files[0]
 		lastID = lastFile.Id
@@ -548,11 +548,11 @@ func (d *GDriver) Open(name string) (afero.File, error) {
 // OpenFile opens a File in the traditional os.Open way
 func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File, error) {
 	if path == "" {
-		return nil, errors.New("path cannot be empty")
+		return nil, ErrEmptyPath
 	}
 
 	if flag&os.O_RDWR != 0 {
-		return nil, errors.New("read and write not supported")
+		return nil, ErrReadAndWriteNotSupported
 	}
 
 	// determinate existent status
@@ -588,10 +588,10 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 			return nil, FileNotExistError{Path: path}
 		}
 
-		reader, err := d.getFileReader(file, 0)
+		reader, errReader := d.getFileReader(file, 0)
 
-		if err != nil {
-			return nil, err
+		if errReader != nil {
+			return nil, errReader
 		}
 
 		return &File{

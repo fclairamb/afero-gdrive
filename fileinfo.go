@@ -8,7 +8,7 @@ import (
 	drive "google.golang.org/api/drive/v3"
 )
 
-const MimeFolder = "application/vnd.google-apps.folder"
+const mimeFolder = "application/vnd.google-apps.folder"
 
 // FileInfo represents File information for a File or directory
 type FileInfo struct {
@@ -16,27 +16,31 @@ type FileInfo struct {
 	parentPath string
 }
 
+// Mode returns the file mode bits
 func (i *FileInfo) Mode() os.FileMode {
 	mode := os.FileMode(0666)
-	if i.file.MimeType == MimeFolder {
+	if i.file.MimeType == mimeFolder {
 		mode |= os.ModeDir
 	}
+
 	return mode
 }
 
+// ModTime returns the modification time
 func (i *FileInfo) ModTime() time.Time {
 	modifiedTime, _ := time.Parse(time.RFC3339, i.file.ModifiedTime)
 	return modifiedTime
 }
 
-// CreationTime returns the time when this File was created
+// CreateTime returns the time when this File was created
 func (i *FileInfo) CreateTime() time.Time {
 	t, _ := time.Parse(time.RFC3339, i.file.CreatedTime)
 	return t
 }
 
+// Sys provides underlying data source
 func (i *FileInfo) Sys() interface{} {
-	return nil
+	return i.file
 }
 
 // Name returns the name of the File or directory
@@ -76,6 +80,7 @@ func sanitizeName(s string) string {
 			runes[i] = '-'
 		}
 	}
+
 	return string(runes)
 }
 

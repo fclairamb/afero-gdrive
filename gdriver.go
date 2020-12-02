@@ -3,7 +3,6 @@ package gdriver
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"github.com/fclairamb/afero-gdrive/log"
 	"github.com/spf13/afero"
@@ -80,10 +79,12 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 	return driver, nil
 }
 
+// Name provides the name of this filesystem
 func (d *GDriver) Name() string {
 	return "gdrive"
 }
 
+// AsAfero provides a simple cast for easy testing
 func (d *GDriver) AsAfero() afero.Fs {
 	return d
 }
@@ -94,17 +95,20 @@ func (d *GDriver) AsAfero() afero.Fs {
 func (d *GDriver) SetRootDirectory(path string) (*FileInfo, error) {
 	rootNode, err := getRootNode(d.srv)
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve Drive root: %v", err)
+		return nil, fmt.Errorf("unable to retrieve Drive root: %w", err)
 	}
 
 	file, err := d.getFileOnRootNode(rootNode, path, listFields...)
 	if err != nil {
 		return nil, err
 	}
+
 	if !file.IsDir() {
-		return nil, FileIsNotDirectoryError{fi: file}
+		return nil, FileIsNotDirectoryError{Fi: file}
 	}
+
 	d.rootNode = file
+
 	return file, nil
 }
 
@@ -115,13 +119,16 @@ func (d *GDriver) Stat(path string) (os.FileInfo, error) {
 
 func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) {
 	if !fi.IsDir() {
-		return nil, FileIsNotDirectoryError{fi}
+		return nil, FileIsNotDirectoryError{Fi: fi}
 	}
-	var pageToken string
+
+	pageToken := ""
 	files := make([]os.FileInfo, 0)
 
 	for len(files) < count {
-		call := d.srv.Files.List().Q(fmt.Sprintf("'%s' in parents and trashed = false", fi.file.Id)).Fields(append(listFields, "nextPageToken")...)
+		call := d.srv.Files.List().
+			Q(fmt.Sprintf("'%s' in parents and trashed = false", fi.file.Id)).
+			Fields(append(listFields, "nextPageToken")...)
 
 		if pageToken != "" {
 			call = call.PageToken(pageToken)
@@ -133,7 +140,7 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 		}
 
 		if descendants == nil {
-			return nil, errors.New("no File information present in path")
+			return nil, &NoFileInformationError{Fi: fi}
 		}
 
 		for i := 0; i < len(descendants.Files); i++ {
@@ -147,17 +154,18 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 			break
 		}
 	}
+
 	return files, nil
 }
 
-// MakeDirectory creates a directory for the specified path, it will create non existent directores automatically
-//
-// Examples:
-//     MakeDirectory("Pictures/Holidays") // will create Pictures and Holidays
+// Mkdir creates a directory in the filesystem, return an error if any
+// happens.
 func (d *GDriver) Mkdir(path string, perm os.FileMode) error {
 	return d.MkdirAll(path, perm)
 }
 
+// MkdirAll creates a directory path and all parents that does not exist
+// yet.
 func (d *GDriver) MkdirAll(path string, _ os.FileMode) error {
 	_, err := d.makeDirectoryByParts(strings.FieldsFunc(path, isPathSeperator))
 	return err
@@ -165,22 +173,33 @@ func (d *GDriver) MkdirAll(path string, _ os.FileMode) error {
 
 func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 	parentNode := d.rootNode
+
 	for i := 0; i < len(pathParts); i++ {
-		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", parentNode.file.Id, sanitizeName(pathParts[i]))
+		query := fmt.Sprintf(
+			"'%s' in parents and name='%s' and trashed = false",
+			parentNode.file.Id,
+			sanitizeName(pathParts[i]),
+		)
+
 		files, err := d.srv.Files.List().Q(query).Fields(listFields...).Do()
 		if err != nil {
 			return nil, err
 		}
+
 		if files == nil {
-			return nil, fmt.Errorf("no File information present (in `%s')", path.Join(pathParts[:i+1]...))
+			return nil, &NoFileInformationError{Path: path.Join(pathParts[:i+1]...)}
 		}
 
 		if len(files.Files) <= 0 {
 			// File not found => create directory
 			if !parentNode.IsDir() {
-				return nil, fmt.Errorf("unable to create directory in `%s': `%s' is not a directory", path.Join(pathParts[:i]...), parentNode.Name())
+				return nil, FileIsNotDirectoryError{
+					Fi:   parentNode,
+					Path: path.Join(pathParts[:i]...),
+				}
 			}
 			var createdDir *drive.File
+
 			createdDir, err = d.srv.Files.Create(&drive.File{
 				Name:     sanitizeName(pathParts[i]),
 				MimeType: mimeTypeFolder,
@@ -191,6 +210,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			parentNode = &FileInfo{
 				file:       createdDir,
 				parentPath: path.Join(pathParts[:i]...),
@@ -204,6 +224,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 			}
 		}
 	}
+
 	return parentNode, nil
 }
 
@@ -213,23 +234,27 @@ func (d *GDriver) DeleteDirectory(path string) error {
 	if err != nil {
 		return err
 	}
+
 	if !file.IsDir() {
-		return FileIsNotDirectoryError{fi: file}
+		return FileIsNotDirectoryError{Fi: file}
 	}
 
 	if file == d.rootNode {
-		return errors.New("root cannot be deleted")
+		return ErrForbiddenOnRoot
 	}
+
 	return d.deleteFile(file)
 }
 
 func (d *GDriver) deleteFile(fi *FileInfo) error {
 	var err error
+
 	if d.TrashForDelete {
 		_, err = d.srv.Files.Update(fi.file.Id, &drive.File{Trashed: true}).Do()
 	} else {
 		err = d.srv.Files.Delete(fi.file.Id).Do()
 	}
+
 	return err
 }
 
@@ -239,12 +264,16 @@ func (d *GDriver) RemoveAll(path string) error {
 	if err != nil {
 		return err
 	}
+
 	if file == d.rootNode {
 		return ErrForbiddenOnRoot
 	}
+
 	return d.deleteFile(file)
 }
 
+// Remove removes a file identified by name, returning an error, if any
+// happens.
 func (d *GDriver) Remove(path string) error {
 	return d.RemoveAll(path)
 }
@@ -260,6 +289,8 @@ func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, erro
 		request.Header().Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
 
+	// The resulting stream will be closed by the reader of the file
+	// nolint:bodyclose
 	response, err := request.Download()
 	if err != nil {
 		return nil, err
@@ -297,6 +328,7 @@ func (d *GDriver) getFileWriter(fi *FileInfo) (io.WriteCloser, chan error, error
 			)
 		}
 	}()
+
 	return writer, endErr, nil
 }
 
@@ -304,10 +336,11 @@ func (d *GDriver) getFileInfoFromPath(path string) (*FileInfo, error) {
 	return d.getFile(path, listFields...)
 }
 
-// createFile creates a new fi
+// createFile creates a new Fi
 func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
+
 	if amountOfParts <= 0 {
 		return nil, ErrEmptyPath
 	}
@@ -318,6 +351,7 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 		if !IsNotExist(err) {
 			return nil, err
 		}
+
 		existentFile = nil
 	}
 
@@ -327,15 +361,19 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 
 	// create a new File
 	parentNode := d.rootNode
+
 	if amountOfParts > 1 {
 		dir, errMkDir := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
 		if errMkDir != nil {
 			return nil, errMkDir
 		}
-		parentNode = dir
 
+		parentNode = dir
 		if !parentNode.IsDir() {
-			return nil, fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			return nil, &FileIsNotDirectoryError{
+				Fi:   parentNode,
+				Path: path.Join(pathParts[:amountOfParts-1]...),
+			}
 		}
 	}
 
@@ -352,20 +390,18 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &FileInfo{
 		file:       file,
 		parentPath: path.Join(pathParts[:amountOfParts-1]...),
 	}, nil
 }
 
-// Rename moves a File or directory to a new path, note that move also renames the target if necessary and creates non existing directories
-//
-// Examples:
-//     Rename("Folder1/File1", "Folder2/File2") // File1 in Folder1 will be moved to Folder2/File2
-//     Rename("Folder1/File1", "Folder2/File1") // File1 in Folder1 will be moved to Folder2/File1
+// Rename moves a File or directory to a new path
 func (d *GDriver) Rename(oldPath, newPath string) error {
 	pathParts := strings.FieldsFunc(newPath, isPathSeperator)
 	amountOfParts := len(pathParts)
+
 	if amountOfParts <= 0 {
 		return ErrEmptyPath
 	}
@@ -380,15 +416,17 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 	}
 
 	parentNode := d.rootNode
+
 	if amountOfParts > 1 {
 		dir, errMkDir := d.makeDirectoryByParts(pathParts[:amountOfParts-1])
 		if errMkDir != nil {
 			return errMkDir
 		}
-		parentNode = dir
 
+		parentNode = dir
 		if !parentNode.IsDir() {
-			return fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			//return fmt.Errorf("unable to create File in `%s': `%s' is not a directory", path.Join(pathParts[:amountOfParts-1]...), parentNode.Name())
+			return &FileIsNotDirectoryError{Fi: parentNode}
 		}
 	}
 
@@ -398,6 +436,7 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 		AddParents(parentNode.file.Id).
 		RemoveParents(path.Join(file.file.Parents...)).
 		Fields(fileInfoFields...).Do()
+
 	return err
 }
 
@@ -406,21 +445,25 @@ func (d *GDriver) trash(fi *FileInfo) error {
 	_, err := d.srv.Files.Update(fi.file.Id, &drive.File{
 		Trashed: true,
 	}).Do()
+
 	return err
 }
 
 func (d *GDriver) trashPath(path string) error {
 	if path == "" {
-		return errors.New("root cannot be trashed")
+		return ErrForbiddenOnRoot
 	}
+
 	fi, err := d.getFile(path, "files(id)")
 	if err != nil {
 		return err
 	}
+
 	return d.trash(fi)
 }
 
-// ListTrash lists the contents of the trash, if you specify directories it will only list the trash contents of the specified directories
+// ListTrash lists the contents of the trash
+// if you specify directories it will only list the trash contents of the specified directories
 func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 	file, err := d.getFile(filePath, "files(id,name)")
 	if err != nil {
@@ -428,7 +471,9 @@ func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 	}
 
 	// no directories specified
-	files, err := d.srv.Files.List().Q("trashed = true").Fields(googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields)))).Do()
+	files, err := d.srv.Files.List().Q("trashed = true").Fields(
+		googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))),
+	).Do()
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +482,6 @@ func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 
 	for i := 0; i < len(files.Files); i++ {
 		// determinate the parent of this File
-
 		inRoot, parentPath, err := isInRoot(d.srv, file.file.Id, files.Files[i], "")
 		if err != nil {
 			return nil, err
@@ -453,6 +497,7 @@ func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 			)
 		}
 	}
+
 	return list, nil
 }
 
@@ -461,6 +506,7 @@ func getRootNode(srv *drive.Service) (*FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &FileInfo{
 		file:       root,
 		parentPath: "",
@@ -473,14 +519,17 @@ func isInRoot(srv *drive.Service, rootID string, file *drive.File, basePath stri
 		if parentID == rootID {
 			return true, basePath, nil
 		}
+
 		parent, err := srv.Files.Get(parentID).Fields("id,name,parents").Do()
 		if err != nil {
 			return false, "", err
 		}
+
 		if inRoot, parentPath, err := isInRoot(srv, rootID, parent, path.Join(parent.Name, basePath)); err != nil || inRoot {
 			return inRoot, parentPath, err
 		}
 	}
+
 	return false, "", nil
 }
 
@@ -504,6 +553,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 	lastID := rootNode.file.Id
 	lastPart := amountOfParts - 1
 	var lastFile *drive.File
+
 	for i := 0; i < amountOfParts; i++ {
 		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", lastID, sanitizeName(pathParts[i]))
 		// Logger.Println("query:" + query)
@@ -519,19 +569,22 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 		} else {
 			call = call.Fields("files(id)")
 		}
+
 		files, err := call.Do()
 		if err != nil {
 			return nil, err
 		}
+
 		if files == nil || len(files.Files) <= 0 {
 			return nil, FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
 		}
+
 		if len(files.Files) > 1 {
 			return nil, &FileHasMultipleEntriesError{Path: path.Join(pathParts[:i+1]...)}
 		}
+
 		lastFile = files.Files[0]
 		lastID = lastFile.Id
-		// Logger.Printf("=>%s = %s\n", path.Join(pathParts[:i+1]...), lastID)
 	}
 
 	return &FileInfo{
@@ -561,6 +614,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 
 	if err == nil {
 		fileExists = true
+
 		if file.IsDir() {
 			return &File{
 				Driver:   d,
@@ -629,42 +683,53 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 			streamWriteEnd: endErr,
 		}, nil
 	}
-	return nil, fmt.Errorf("unknown flag: %d", flag)
+
+	return nil, ErrOpenMissingFlag
 }
 
+// Create creates a file in the filesystem, returning the file and an
+// error, if any happens.
 func (d *GDriver) Create(name string) (afero.File, error) {
 	file, err := d.OpenFile(name, os.O_CREATE, 0777)
 	if err != nil {
 		return nil, err
 	}
+
 	if _, errWrite := file.Write([]byte{}); errWrite != nil {
 		return nil, err
 	}
+
 	return file, nil
 }
 
+//Chmod changes the mode of the named file to mode.
 func (d *GDriver) Chmod(path string, mode os.FileMode) error {
 	fi, err := d.getFile(path)
 	if err != nil {
 		return err
 	}
+
 	_, err = d.srv.Files.Update(fi.file.Id, &drive.File{
 		Properties: map[string]string{
 			"ftp_file_mode": fmt.Sprintf("%d", mode),
 		},
 	}).Do()
+
 	return err
 }
 
+//Chtimes changes the access and modification times of the named file
 func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 	fi, err := d.getFile(path)
 	if err != nil {
 		return err
 	}
+
 	_, err = d.srv.Files.Update(fi.file.Id, &drive.File{
 		ViewedByMeTime: atime.Format(time.RFC3339),
 		ModifiedTime:   mTime.Format(time.RFC3339),
 		// ModifiedByMeTime: mTime.Format(time.RFC3339),
 	}).Do()
+
 	return err
 }

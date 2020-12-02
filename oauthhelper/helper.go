@@ -18,8 +18,7 @@ type Auth struct {
 	// Store (and restore prior use) this token to avoid further authorization calls
 	Token *oauth2.Token
 	// ClientID  from https://console.developers.google.com/project/<your-project-id>/apiui/credential
-	ClientID string
-	// ClientSecret  from https://console.developers.google.com/project/<your-project-id>/apiui/credential
+	ClientID     string
 	ClientSecret string
 	Authenticate AuthenticateFunc
 }
@@ -47,6 +46,7 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, userScopes ...string) (*htt
 
 	if auth.Token == nil {
 		var err error
+
 		auth.Token, err = auth.getTokenFromWeb(config)
 		if err != nil {
 			return nil, err
@@ -58,14 +58,17 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, userScopes ...string) (*htt
 
 func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+
 	code, err := auth.Authenticate(authURL)
 	if err != nil {
 		return nil, fmt.Errorf("Authenticate error: %v", err)
 	}
+
 	tok, err := config.Exchange(context.Background(), code)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to retrieve token from web %v", err)
 	}
+
 	return tok, nil
 }
 

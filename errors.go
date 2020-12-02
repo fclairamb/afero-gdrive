@@ -16,13 +16,19 @@ var ErrInvalidSeek = errors.New("invalid seek offset")
 
 var ErrReadAndWriteNotSupported = errors.New("O_RDWR mode is not supported")
 
+var ErrReadOnly = errors.New("we're in a read-only mode")
+
+var ErrWriteOnly = errors.New("we're in write-only mode")
+
+var ErrOpenMissingFlag = errors.New("you need to specify a read or write flag")
+
 var ErrEmptyPath = errors.New("empty path")
 
 var ErrForbiddenOnRoot = errors.New("forbidden root directory")
 
 var InternalNilError = errors.New("internal nil error")
 
-// FileNotExistError will be thrown if an File was not found
+// FileNotExistError will be thrown if a File was not found
 type FileNotExistError struct {
 	Path string
 }
@@ -37,19 +43,13 @@ type FileExistError struct {
 }
 
 func (e FileExistError) Error() string {
-	return fmt.Sprintf("`%s' already exists", e.Path)
+	return fmt.Sprintf("\"%s\" already exists", e.Path)
 }
 
 // IsNotExist returns true if the error is an FileNotExistError
 func IsNotExist(e error) bool {
-	_, ok := e.(FileNotExistError)
-	return ok
-}
-
-// IsExist returns true if the error is an FileExistError
-func IsExist(e error) bool {
-	_, ok := e.(FileExistError)
-	return ok
+	var notExists *FileNotExistError
+	return errors.Is(e, notExists)
 }
 
 // FileIsDirectoryError will be thrown if a File is a directory
@@ -63,7 +63,8 @@ func (e FileIsDirectoryError) Error() string {
 
 // FileIsNotDirectoryError will be thrown if a File is not a directory
 type FileIsNotDirectoryError struct {
-	fi *FileInfo
+	Fi   *FileInfo
+	Path string
 }
 
 func (e FileIsNotDirectoryError) Error() string {
@@ -76,4 +77,17 @@ type FileHasMultipleEntriesError struct {
 
 func (e FileHasMultipleEntriesError) Error() string {
 	return fmt.Sprintf("multiple entries found for `%s'", e.Path)
+}
+
+type NoFileInformationError struct {
+	Fi   *FileInfo
+	Path string
+}
+
+func (e NoFileInformationError) Error() string {
+	if e.Path == "" {
+		return fmt.Sprintf("no file information present in %s : \"%s\"", e.Fi.file.Id, e.Fi.file.Name)
+	} else {
+		return fmt.Sprintf("no file information present in path \"%s\"", e.Path)
+	}
 }

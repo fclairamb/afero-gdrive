@@ -38,7 +38,7 @@ jobs:
         if: matrix.lint
         uses: actions-contrib/golangci-lint@v1
         with:
-          golangci_lint_version: v1.30
+          golangci_lint_version: v1.33
 
       # Install Go
       - name: Setup go

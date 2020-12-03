@@ -650,7 +650,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 
 	// We should try to create the file if we have the right to do so
 	if !fileExists {
-		if flag&os.O_CREATE != 0 {
+		if flag&os.O_CREATE != 0 && flag&os.O_WRONLY != 0 {
 			file, err = d.createFile(path)
 			if err != nil {
 				return nil, err

@@ -470,13 +470,13 @@ func TestMove(t *testing.T) {
 	t.Run("move root", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
-		require.EqualError(t, driver.Rename("", "Folder1"), "root cannot be moved")
+		require.EqualError(t, driver.Rename("", "Folder1"), "forbidden for root directory")
 	})
 
 	t.Run("invalid target", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
-		require.EqualError(t, driver.Rename("Folder1", ""), "new path cannot be empty")
+		require.EqualError(t, driver.Rename("Folder1", ""), "path cannot be empty")
 	})
 }
 
@@ -529,7 +529,7 @@ func TestTrash(t *testing.T) {
 			driver = src.AsAfero()
 		}
 
-		require.EqualError(t, driver.Remove(""), "root cannot be deleted")
+		require.EqualError(t, driver.Remove(""), "forbidden for root directory")
 	})
 }
 

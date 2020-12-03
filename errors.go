@@ -30,7 +30,7 @@ var ErrOpenMissingFlag = errors.New("you need to specify a read or write flag")
 var ErrEmptyPath = errors.New("path cannot be empty")
 
 // ErrForbiddenOnRoot is returned when an operation is performed on the root node
-var ErrForbiddenOnRoot = errors.New("forbidden root directory")
+var ErrForbiddenOnRoot = errors.New("forbidden for root directory")
 
 // errInternalNil is an internal error and it should never be reported
 var errInternalNil = errors.New("internal nil error")

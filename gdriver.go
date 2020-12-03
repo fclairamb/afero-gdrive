@@ -655,6 +655,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 			if err != nil {
 				return nil, err
 			}
+
 			fileExists = true
 		} else {
 			return nil, FileNotExistError{Path: path}

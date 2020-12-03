@@ -648,10 +648,15 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 		}
 	}
 
-	// if we are not allowed to create a File
-	// and the File does not exist, fail
-	if flag&os.O_CREATE == 0 {
-		if !fileExists {
+	// We should try to create the file if we have the right to do so
+	if !fileExists {
+		if flag&os.O_CREATE != 0 {
+			file, err = d.createFile(path)
+			if err != nil {
+				return nil, err
+			}
+			fileExists = true
+		} else {
 			return nil, FileNotExistError{Path: path}
 		}
 	}
@@ -659,15 +664,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 	// If we're in write mode
 	if flag&os.O_WRONLY != 0 {
 		if !fileExists {
-			// if File not exists, and we can not create the File
-			if flag&os.O_CREATE != 0 {
-				file, err = d.createFile(path)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, FileNotExistError{Path: path}
-			}
+			return nil, FileNotExistError{Path: path}
 		}
 
 		return d.openFileWrite(file, path)

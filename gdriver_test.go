@@ -166,7 +166,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.EqualError(
 			t,
 			driver.MkdirAll("Folder1/File1/Folder2", os.FileMode(0)),
-			"unable to create directory in `Folder1/File1': `Folder1/File1' is not a directory",
+			"file Folder1/File1 is not a directory",
 		)
 	})
 
@@ -184,7 +184,7 @@ func TestFileFolderMixup(t *testing.T) {
 	require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-	require.EqualError(t, err, "unable to create File in `Folder1/File1': `Folder1/File1' is not a directory")
+	require.EqualError(t, err, "file Folder1/File1 is not a directory")
 }
 
 func TestCreateFile(t *testing.T) {
@@ -240,7 +240,7 @@ func TestCreateFile(t *testing.T) {
 		require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 		err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-		require.EqualError(t, err, "unable to create File in `Folder1/File1': `Folder1/File1' is not a directory")
+		require.EqualError(t, err, "file Folder1/File1 is not a directory")
 	})
 
 	t.Run("empty target", func(t *testing.T) {
@@ -408,7 +408,7 @@ func TestListDirectory(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = dir.Readdir(1000)
-		require.EqualError(t, err, "file is not a directory")
+		require.EqualError(t, err, "file File1 is not a directory")
 	})
 }
 

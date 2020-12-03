@@ -348,7 +348,7 @@ func (d *GDriver) getFileInfoFromPath(path string) (*FileInfo, error) {
 	return d.getFile(path, listFields...)
 }
 
-// createFile creates a new Fi
+// createFile creates a new file
 func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 	pathParts := strings.FieldsFunc(filePath, isPathSeperator)
 	amountOfParts := len(pathParts)
@@ -656,7 +656,7 @@ func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File,
 		}
 	}
 
-	// If we're in read-only
+	// If we're in write mode
 	if flag&os.O_WRONLY != 0 {
 		if !fileExists {
 			// if File not exists, and we can not create the File

@@ -27,7 +27,7 @@ var ErrWriteOnly = errors.New("we're in write-only mode")
 var ErrOpenMissingFlag = errors.New("you need to specify a read or write flag")
 
 // ErrEmptyPath is returned when an empty path is sent
-var ErrEmptyPath = errors.New("empty path")
+var ErrEmptyPath = errors.New("path cannot be empty")
 
 // ErrForbiddenOnRoot is returned when an operation is performed on the root node
 var ErrForbiddenOnRoot = errors.New("forbidden root directory")
@@ -53,10 +53,12 @@ func (e FileExistError) Error() string {
 	return fmt.Sprintf("\"%s\" already exists", e.Path)
 }
 
+var fileNotExistError FileNotExistError
+
 // IsNotExist returns true if the error is an FileNotExistError
 func IsNotExist(e error) bool {
-	var notExists *FileNotExistError
-	return errors.Is(e, notExists)
+	is := errors.As(e, &fileNotExistError)
+	return is
 }
 
 // FileIsDirectoryError will be thrown if a File is a directory
@@ -75,7 +77,11 @@ type FileIsNotDirectoryError struct {
 }
 
 func (e FileIsNotDirectoryError) Error() string {
-	return "file is not a directory"
+	if e.Path == "" {
+		return fmt.Sprintf("file %s is not a directory", e.Fi.file.Name)
+	}
+
+	return fmt.Sprintf("file %s is not a directory", e.Path)
 }
 
 // FileHasMultipleEntriesError will be returned when the same file name is present multiple times

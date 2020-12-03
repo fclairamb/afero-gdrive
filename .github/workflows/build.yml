@@ -34,9 +34,11 @@ jobs:
       - uses: actions/checkout@v2
 
       # Running golangci-lint
-      #- name: Run golangci-lint
-      #  if: matrix.lint
-      #  uses: actions-contrib/golangci-lint@v1
+      - name: Run golangci-lint
+        if: matrix.lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.33
 
       # Install Go
       - name: Setup go

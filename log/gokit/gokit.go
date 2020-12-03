@@ -1,3 +1,4 @@
+// Package gokit defines a simple implementation of the logging interface
 package gokit
 
 import (

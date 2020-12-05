@@ -1,4 +1,4 @@
-package gdriver // nolint: golint
+package gdrive // nolint: golint
 
 import (
 	"errors"
@@ -107,4 +107,32 @@ func (e NoFileInformationError) Error() string {
 	}
 
 	return fmt.Sprintf("no file information present in path \"%s\"", e.Path)
+}
+
+// DriveAPICallError wraps an error that was returned by the Google Drive API
+type DriveAPICallError struct {
+	Err error
+}
+
+func (e *DriveAPICallError) Error() string {
+	return fmt.Sprintf("problem calling the drive API: %v", e.Err)
+}
+
+// Unwrap exposes the Google Drive API returned error
+func (e *DriveAPICallError) Unwrap() error {
+	return e.Err
+}
+
+// DriveStreamError wraps an error that happened while using a stream opened from the Google Drive API
+type DriveStreamError struct {
+	Err error
+}
+
+func (e *DriveStreamError) Error() string {
+	return fmt.Sprintf("problem with drive stream: %v", e.Err)
+}
+
+// Unwrap exposes the underlying stream error
+func (e *DriveStreamError) Unwrap() error {
+	return e.Err
 }

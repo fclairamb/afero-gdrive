@@ -1,4 +1,4 @@
-package gdriver // nolint: golint
+package gdrive // nolint: golint
 
 import (
 	"os"
@@ -18,7 +18,7 @@ type FileInfo struct {
 
 // Mode returns the file mode bits
 func (i *FileInfo) Mode() os.FileMode {
-	mode := os.FileMode(0666)
+	mode := os.FileMode(0)
 	if i.file.MimeType == mimeFolder {
 		mode |= os.ModeDir
 	}
@@ -45,7 +45,7 @@ func (i *FileInfo) Sys() interface{} {
 
 // Name returns the name of the File or directory
 func (i *FileInfo) Name() string {
-	return path.Join(i.parentPath, sanitizeName(i.file.Name))
+	return sanitizeName(i.file.Name)
 }
 
 // ParentPath returns the parent path of the File or directory
@@ -55,7 +55,7 @@ func (i *FileInfo) ParentPath() string {
 
 // Path returns the full path to this File or directory
 func (i *FileInfo) Path() string {
-	return path.Join(i.parentPath, sanitizeName(i.file.Name))
+	return path.Join(i.parentPath, i.Name())
 }
 
 // Size returns the bytes for this File

@@ -1,5 +1,5 @@
-// Package gdriver provides an afero Fs interface to Google Drive API
-package gdriver
+// Package gdrive provides an afero Fs interface to Google Drive API
+package gdrive
 
 import (
 	"bytes"
@@ -35,6 +35,12 @@ type HashMethod int
 const (
 	mimeTypeFolder = "application/vnd.google-apps.folder"
 	mimeTypeFile   = "application/octet-stream"
+
+	// We should probably ignore these types of files:
+	// mimeTypeDocument     = "application/vnd.google-apps.document"
+	// mimeTypeSpreadsheet  = "application/vnd.google-apps.spreadsheet"
+	// mimeTypePresentation = "application/vnd.google-apps.presentation"
+	// mimeTypeDrawing      = "application/vnd.google-apps.drawing"
 )
 
 var (
@@ -130,7 +136,7 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 	pageToken := ""
 	files := make([]os.FileInfo, 0)
 
-	for len(files) < count {
+	for count < 0 || len(files) < count {
 		call := d.srv.Files.List().
 			Q(fmt.Sprintf("'%s' in parents and trashed = false", fi.file.Id)).
 			Fields(append(listFields, "nextPageToken")...)
@@ -141,7 +147,7 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 
 		descendants, err := call.Do()
 		if err != nil {
-			return files, err
+			return nil, &DriveAPICallError{Err: err}
 		}
 
 		if descendants == nil {
@@ -188,7 +194,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 
 		files, err := d.srv.Files.List().Q(query).Fields(listFields...).Do()
 		if err != nil {
-			return nil, err
+			return nil, &DriveAPICallError{Err: err}
 		}
 
 		if files == nil {
@@ -215,7 +221,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 					},
 				}).Fields(fileInfoFields...).Do()
 				if err != nil {
-					return nil, err
+					return nil, &DriveAPICallError{Err: err}
 				}
 
 				parentNode = &FileInfo{
@@ -267,7 +273,11 @@ func (d *GDriver) deleteFile(fi *FileInfo) error {
 		err = d.srv.Files.Delete(fi.file.Id).Do()
 	}
 
-	return err
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 // RemoveAll will delete a File or directory, if directory it will also delete its descendants
@@ -305,7 +315,7 @@ func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, erro
 	// nolint:bodyclose
 	response, err := request.Download()
 	if err != nil {
-		return nil, err
+		return nil, &DriveAPICallError{Err: err}
 	}
 
 	return response.Body, nil
@@ -400,7 +410,7 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 		},
 	).Fields(fileInfoFields...).Media(bytes.NewReader([]byte{})).Do()
 	if err != nil {
-		return nil, err
+		return nil, &DriveAPICallError{Err: err}
 	}
 
 	return &FileInfo{
@@ -450,7 +460,11 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 		RemoveParents(path.Join(file.file.Parents...)).
 		Fields(fileInfoFields...).Do()
 
-	return err
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 // Trash trashes a File or directory
@@ -459,7 +473,11 @@ func (d *GDriver) trash(fi *FileInfo) error {
 		Trashed: true,
 	}).Do()
 
-	return err
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 func (d *GDriver) trashPath(path string) error {
@@ -477,7 +495,7 @@ func (d *GDriver) trashPath(path string) error {
 
 // ListTrash lists the contents of the trash
 // if you specify directories it will only list the trash contents of the specified directories
-func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
+func (d *GDriver) ListTrash(filePath string, _ int) ([]*FileInfo, error) {
 	file, err := d.getFile(filePath, "files(id,name)")
 	if err != nil {
 		return nil, err
@@ -488,7 +506,7 @@ func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 		googleapi.Field(fmt.Sprintf("files(%s,parents)", googleapi.CombineFields(fileInfoFields))),
 	).Do()
 	if err != nil {
-		return nil, err
+		return nil, &DriveAPICallError{Err: err}
 	}
 
 	var list []*FileInfo
@@ -517,7 +535,7 @@ func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
 func getRootNode(srv *drive.Service) (*FileInfo, error) {
 	root, err := srv.Files.Get("root").Fields(fileInfoFields...).Do()
 	if err != nil {
-		return nil, err
+		return nil, &DriveAPICallError{Err: err}
 	}
 
 	return &FileInfo{
@@ -535,7 +553,7 @@ func isInRoot(srv *drive.Service, rootID string, file *drive.File, basePath stri
 
 		parent, err := srv.Files.Get(parentID).Fields("id,name,parents").Do()
 		if err != nil {
-			return false, "", err
+			return false, "", &DriveAPICallError{Err: err}
 		}
 
 		if inRoot, parentPath, err := isInRoot(srv, rootID, parent, path.Join(parent.Name, basePath)); err != nil || inRoot {
@@ -585,7 +603,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 
 		files, err := call.Do()
 		if err != nil {
-			return nil, err
+			return nil, &DriveAPICallError{Err: err}
 		}
 
 		if files == nil || len(files.Files) == 0 {
@@ -612,7 +630,7 @@ func (d *GDriver) Open(name string) (afero.File, error) {
 }
 
 // OpenFile opens a File in the traditional os.Open way
-func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File, error) {
+func (d *GDriver) OpenFile(path string, flag int, _ os.FileMode) (afero.File, error) {
 	if path == "" {
 		return nil, ErrEmptyPath
 	}
@@ -731,7 +749,11 @@ func (d *GDriver) Chmod(path string, mode os.FileMode) error {
 		},
 	}).Do()
 
-	return err
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 // Chtimes changes the access and modification times of the named file
@@ -747,5 +769,9 @@ func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 		// ModifiedByMeTime: mTime.Format(time.RFC3339),
 	}).Do()
 
-	return err
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }

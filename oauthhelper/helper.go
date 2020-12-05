@@ -28,14 +28,10 @@ type Auth struct {
 }
 
 // NewHTTPClient instantiates a new authentication client
-func (auth *Auth) NewHTTPClient(ctx context.Context, userScopes ...string) (*http.Client, error) {
-	defaultScopes := []string{"https://www.googleapis.com/auth/drive"}
-
-	var scopes []string
-	if len(userScopes) == 0 {
-		scopes = defaultScopes
-	} else {
-		scopes = userScopes
+func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Client, error) {
+	// If no scope has been specified, it shall only be the drive API one
+	if len(scopes) == 0 {
+		scopes = []string{"https://www.googleapis.com/auth/drive"}
 	}
 
 	config := &oauth2.Config{
@@ -81,7 +77,7 @@ func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) 
 func LoadTokenFromFile(file string) (*oauth2.Token, error) {
 	f, err := os.Open(filepath.Clean(file))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't open token file: %w", err)
 	}
 
 	defer func() { _ = f.Close() }()
@@ -98,7 +94,7 @@ func LoadTokenFromFile(file string) (*oauth2.Token, error) {
 func StoreTokenToFile(file string, token *oauth2.Token) error {
 	f, err := os.Create(file)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't open token file: %w", err)
 	}
 
 	defer func() { _ = f.Close() }()

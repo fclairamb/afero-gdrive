@@ -1,5 +1,5 @@
 // nolint: funlen
-package gdriver
+package gdrive
 
 import (
 	"bytes"
@@ -136,7 +136,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.NoError(t, driver.MkdirAll("Folder1/Folder2/Folder3", os.FileMode(0)))
 		fi, err := driver.Stat("Folder1/Folder2/Folder3")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/Folder2/Folder3", fi.Name())
+		require.Equal(t, "Folder3", fi.Name())
 
 		// Folder1 created?
 		require.NoError(t, getError(driver.Stat("Folder1")))
@@ -184,7 +184,7 @@ func TestFileFolderMixup(t *testing.T) {
 	require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-	require.EqualError(t, err, "file Folder1/File1 is not a directory")
+	require.EqualError(t, err, "couldn't open file: file Folder1/File1 is not a directory")
 }
 
 func TestCreateFile(t *testing.T) {
@@ -223,7 +223,7 @@ func TestCreateFile(t *testing.T) {
 		// File created?
 		fi, err := driver.Stat("Folder1/File1")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/File1", fi.Name())
+		require.Equal(t, "File1", fi.Name())
 
 		// Compare File contents
 		r, err := driver.Open("Folder1/File1")
@@ -240,14 +240,18 @@ func TestCreateFile(t *testing.T) {
 		require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 		err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-		require.EqualError(t, err, "file Folder1/File1 is not a directory")
+		require.EqualError(t, err, "couldn't open file: file Folder1/File1 is not a directory")
 	})
 
 	t.Run("empty target", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
 		// create File
-		require.EqualError(t, writeFile(driver, "", bytes.NewBufferString("Hello World")), "path cannot be empty")
+		require.EqualError(
+			t,
+			writeFile(driver, "", bytes.NewBufferString("Hello World")),
+			"couldn't open file: path cannot be empty",
+		)
 	})
 
 	t.Run("overwrite File", func(t *testing.T) {
@@ -298,7 +302,7 @@ func TestGetFile(t *testing.T) {
 	received, err := ioutil.ReadAll(fi)
 	require.NoError(t, err)
 	require.Equal(t, "Hello World", string(received))
-	require.Equal(t, "Folder1/File1", fi.Name())
+	require.Equal(t, "File1", fi.Name())
 
 	// Get File contents of an Folder
 	file, err := driver.Open("Folder1")
@@ -369,8 +373,8 @@ func TestListDirectory(t *testing.T) {
 			return strings.Compare(files[i].Name(), files[j].Name()) == -1
 		})
 
-		require.Equal(t, "Folder1/File1", files[0].Name())
-		require.Equal(t, "Folder1/File2", files[1].Name())
+		require.Equal(t, "File1", files[0].Name())
+		require.Equal(t, "File2", files[1].Name())
 
 		// Remove contents
 		require.NoError(t, driver.Remove("Folder1/File1"))
@@ -745,7 +749,7 @@ func mustWriteFile(t *testing.T, driver afero.Fs, path string, content string) {
 func writeFile(driver afero.Fs, path string, content io.Reader) error {
 	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't open file: %w", err)
 	}
 
 	defer func() {
@@ -755,7 +759,7 @@ func writeFile(driver afero.Fs, path string, content io.Reader) error {
 	}()
 
 	if _, err := io.Copy(f, content); err != nil {
-		return err
+		return fmt.Errorf("couldn't copy file content: %w", err)
 	}
 
 	return nil

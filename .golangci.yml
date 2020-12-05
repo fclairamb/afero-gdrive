@@ -176,8 +176,13 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - exhaustive
+    # - exhaustivestruct
+    - exportloopref
     - funlen
+    # - gci
     - gochecknoinits
+    # - gochecknoglobals
     - gocognit
     - goconst
     - gocritic
@@ -187,7 +192,7 @@ linters:
     - gofmt
     - goimports
     - golint
-    # - gomnd
+    - gomnd
     - goprintffuncname
     - gosec
     - gosimple
@@ -199,6 +204,8 @@ linters:
     - megacheck
     - misspell
     - nakedret
+    - nestif
+    # - nlreturn
     - prealloc
     - nolintlint
     - rowserrcheck
@@ -212,6 +219,7 @@ linters:
     - unused
     - varcheck
     - whitespace
+    - wrapcheck
     - wsl
   disable-all: false
   presets:

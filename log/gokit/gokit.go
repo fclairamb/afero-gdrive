@@ -63,9 +63,11 @@ type gKLogger struct {
 	logger gklog.Logger
 }
 
+const callDepth = 5
+
 var (
 	// GKDefaultCaller adds a "caller" property
-	GKDefaultCaller = gklog.Caller(5)
+	GKDefaultCaller = gklog.Caller(callDepth)
 	// GKDefaultTimestampUTC adds a "ts" property
 	GKDefaultTimestampUTC = gklog.DefaultTimestampUTC
 )

@@ -15,8 +15,8 @@ I'm very opened to any improvement through issues or pull-request that might lea
 
 ## Known limitations
 - File appending / seeking for write is not supported because Google Drive doesn't support it, it could be simulated by rewriting entire files.
-- Chmod is saved as a property and not used at this time
-- No cache 
+- Chmod is saved as a property and not used at this time.
+- No files listing cache. This means that every directory of a path results in a requests, every single time a path is analyzed.
 
 ## How to use
 Note: Errors handling is skipped for brevity but you definitely have to handle it.

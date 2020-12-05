@@ -755,7 +755,7 @@ func writeFile(driver afero.Fs, path string, content io.Reader) error {
 	}()
 
 	if _, err := io.Copy(f, content); err != nil {
-		return err
+		return fmt.Errorf("couldn't copy file content: %w", err)
 	}
 
 	return nil

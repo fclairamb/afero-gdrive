@@ -108,3 +108,17 @@ func (e NoFileInformationError) Error() string {
 
 	return fmt.Sprintf("no file information present in path \"%s\"", e.Path)
 }
+
+// DriveAPICallError wraps an error that was returned by the Google Drive API
+type DriveAPICallError struct {
+	Err error
+}
+
+func (e *DriveAPICallError) Error() string {
+	return fmt.Sprintf("problem calling the drive API: %v", e.Err)
+}
+
+// Unwrap exposes the Google Drive API returned error
+func (e *DriveAPICallError) Unwrap() error {
+	return e.Err
+}

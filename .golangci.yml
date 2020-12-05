@@ -176,8 +176,13 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - exhaustive
+    # - exhaustivestruct
+    - exportloopref
     - funlen
+    # - gci
     - gochecknoinits
+    # - gochecknoglobals
     - gocognit
     - goconst
     - gocritic
@@ -212,6 +217,7 @@ linters:
     - unused
     - varcheck
     - whitespace
+    - wrapcheck
     - wsl
   disable-all: false
   presets:

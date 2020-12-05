@@ -77,7 +77,7 @@ func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) 
 func LoadTokenFromFile(file string) (*oauth2.Token, error) {
 	f, err := os.Open(filepath.Clean(file))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't open token file: %w", err)
 	}
 
 	defer func() { _ = f.Close() }()
@@ -94,7 +94,7 @@ func LoadTokenFromFile(file string) (*oauth2.Token, error) {
 func StoreTokenToFile(file string, token *oauth2.Token) error {
 	f, err := os.Create(file)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't open token file: %w", err)
 	}
 
 	defer func() { _ = f.Close() }()

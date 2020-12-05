@@ -1,4 +1,4 @@
-package gdriver // nolint: golint
+package gdrive // nolint: golint
 
 import (
 	"errors"

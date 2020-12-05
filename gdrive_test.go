@@ -1,5 +1,5 @@
 // nolint: funlen
-package gdriver
+package gdrive
 
 import (
 	"bytes"

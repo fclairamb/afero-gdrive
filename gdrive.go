@@ -1,5 +1,5 @@
 // Package gdriver provides an afero Fs interface to Google Drive API
-package gdriver
+package gdrive
 
 import (
 	"bytes"

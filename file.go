@@ -114,7 +114,7 @@ func (f *File) Read(p []byte) (int, error) {
 	n, err := f.streamRead.Read(p)
 	f.streamOffset += int64(n)
 
-	return n, err
+	return n, &DriveStreamError{Err: err}
 }
 
 func (f *File) Write(p []byte) (int, error) {
@@ -125,7 +125,7 @@ func (f *File) Write(p []byte) (int, error) {
 	n, err := f.streamWrite.Write(p)
 	f.streamOffset += int64(n)
 
-	return n, err
+	return n, &DriveStreamError{Err: err}
 }
 
 // WriteAt writes some bytes at a specified offset
@@ -159,7 +159,7 @@ func (f *File) Close() error {
 	} else if f.streamRead != nil {
 		err := f.streamRead.Close()
 		f.streamRead = nil
-		return err
+		return &DriveStreamError{Err: err}
 	}
 
 	return nil

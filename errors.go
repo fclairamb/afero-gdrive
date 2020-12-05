@@ -122,3 +122,17 @@ func (e *DriveAPICallError) Error() string {
 func (e *DriveAPICallError) Unwrap() error {
 	return e.Err
 }
+
+// DriveStreamError wraps an error that happened while using a stream opened from the Google Drive API
+type DriveStreamError struct {
+	Err error
+}
+
+func (e *DriveStreamError) Error() string {
+	return fmt.Sprintf("problem with drive stream: %v", e.Err)
+}
+
+// Unwrap exposes the underlying stream error
+func (e *DriveStreamError) Unwrap() error {
+	return e.Err
+}

@@ -745,7 +745,7 @@ func mustWriteFile(t *testing.T, driver afero.Fs, path string, content string) {
 func writeFile(driver afero.Fs, path string, content io.Reader) error {
 	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't open file: %w", err)
 	}
 
 	defer func() {

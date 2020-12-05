@@ -192,7 +192,7 @@ linters:
     - gofmt
     - goimports
     - golint
-    # - gomnd
+    - gomnd
     - goprintffuncname
     - gosec
     - gosimple
@@ -204,6 +204,8 @@ linters:
     - megacheck
     - misspell
     - nakedret
+    - nestif
+    # - nlreturn
     - prealloc
     - nolintlint
     - rowserrcheck

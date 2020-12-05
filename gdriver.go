@@ -267,7 +267,11 @@ func (d *GDriver) deleteFile(fi *FileInfo) error {
 		err = d.srv.Files.Delete(fi.file.Id).Do()
 	}
 
-	return &DriveAPICallError{Err: err}
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 // RemoveAll will delete a File or directory, if directory it will also delete its descendants
@@ -450,7 +454,11 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 		RemoveParents(path.Join(file.file.Parents...)).
 		Fields(fileInfoFields...).Do()
 
-	return &DriveAPICallError{Err: err}
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 // Trash trashes a File or directory
@@ -459,7 +467,11 @@ func (d *GDriver) trash(fi *FileInfo) error {
 		Trashed: true,
 	}).Do()
 
-	return &DriveAPICallError{Err: err}
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 func (d *GDriver) trashPath(path string) error {
@@ -731,7 +743,11 @@ func (d *GDriver) Chmod(path string, mode os.FileMode) error {
 		},
 	}).Do()
 
-	return &DriveAPICallError{Err: err}
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }
 
 // Chtimes changes the access and modification times of the named file
@@ -747,5 +763,9 @@ func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 		// ModifiedByMeTime: mTime.Format(time.RFC3339),
 	}).Do()
 
-	return &DriveAPICallError{Err: err}
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	return nil
 }

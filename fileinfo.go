@@ -18,7 +18,7 @@ type FileInfo struct {
 
 // Mode returns the file mode bits
 func (i *FileInfo) Mode() os.FileMode {
-	mode := os.FileMode(0666)
+	mode := os.FileMode(0)
 	if i.file.MimeType == mimeFolder {
 		mode |= os.ModeDir
 	}

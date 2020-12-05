@@ -184,7 +184,7 @@ func TestFileFolderMixup(t *testing.T) {
 	require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-	require.EqualError(t, err, "file Folder1/File1 is not a directory")
+	require.EqualError(t, err, "couldn't open file: file Folder1/File1 is not a directory")
 }
 
 func TestCreateFile(t *testing.T) {
@@ -240,14 +240,18 @@ func TestCreateFile(t *testing.T) {
 		require.NoError(t, writeFile(driver, "Folder1/File1", bytes.NewBufferString("Hello World")))
 
 		err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
-		require.EqualError(t, err, "file Folder1/File1 is not a directory")
+		require.EqualError(t, err, "couldn't open file: file Folder1/File1 is not a directory")
 	})
 
 	t.Run("empty target", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
 		// create File
-		require.EqualError(t, writeFile(driver, "", bytes.NewBufferString("Hello World")), "path cannot be empty")
+		require.EqualError(
+			t,
+			writeFile(driver, "", bytes.NewBufferString("Hello World")),
+			"couldn't open file: path cannot be empty",
+		)
 	})
 
 	t.Run("overwrite File", func(t *testing.T) {

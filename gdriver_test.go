@@ -136,7 +136,7 @@ func TestMakeDirectory(t *testing.T) {
 		require.NoError(t, driver.MkdirAll("Folder1/Folder2/Folder3", os.FileMode(0)))
 		fi, err := driver.Stat("Folder1/Folder2/Folder3")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/Folder2/Folder3", fi.Name())
+		require.Equal(t, "Folder3", fi.Name())
 
 		// Folder1 created?
 		require.NoError(t, getError(driver.Stat("Folder1")))
@@ -223,7 +223,7 @@ func TestCreateFile(t *testing.T) {
 		// File created?
 		fi, err := driver.Stat("Folder1/File1")
 		require.NoError(t, err)
-		require.Equal(t, "Folder1/File1", fi.Name())
+		require.Equal(t, "File1", fi.Name())
 
 		// Compare File contents
 		r, err := driver.Open("Folder1/File1")
@@ -298,7 +298,7 @@ func TestGetFile(t *testing.T) {
 	received, err := ioutil.ReadAll(fi)
 	require.NoError(t, err)
 	require.Equal(t, "Hello World", string(received))
-	require.Equal(t, "Folder1/File1", fi.Name())
+	require.Equal(t, "File1", fi.Name())
 
 	// Get File contents of an Folder
 	file, err := driver.Open("Folder1")
@@ -369,8 +369,8 @@ func TestListDirectory(t *testing.T) {
 			return strings.Compare(files[i].Name(), files[j].Name()) == -1
 		})
 
-		require.Equal(t, "Folder1/File1", files[0].Name())
-		require.Equal(t, "Folder1/File2", files[1].Name())
+		require.Equal(t, "File1", files[0].Name())
+		require.Equal(t, "File2", files[1].Name())
 
 		// Remove contents
 		require.NoError(t, driver.Remove("Folder1/File1"))

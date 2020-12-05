@@ -130,7 +130,7 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 	pageToken := ""
 	files := make([]os.FileInfo, 0)
 
-	for len(files) < count {
+	for count < 0 || len(files) < count {
 		call := d.srv.Files.List().
 			Q(fmt.Sprintf("'%s' in parents and trashed = false", fi.file.Id)).
 			Fields(append(listFields, "nextPageToken")...)

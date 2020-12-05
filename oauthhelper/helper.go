@@ -28,14 +28,10 @@ type Auth struct {
 }
 
 // NewHTTPClient instantiates a new authentication client
-func (auth *Auth) NewHTTPClient(ctx context.Context, userScopes ...string) (*http.Client, error) {
-	defaultScopes := []string{"https://www.googleapis.com/auth/drive"}
-
-	var scopes []string
-	if len(userScopes) == 0 {
-		scopes = defaultScopes
-	} else {
-		scopes = userScopes
+func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Client, error) {
+	// If no scope has been specified, it shall only be the drive API one
+	if len(scopes) == 0 {
+		scopes = []string{"https://www.googleapis.com/auth/drive"}
 	}
 
 	config := &oauth2.Config{

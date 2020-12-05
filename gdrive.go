@@ -1,4 +1,4 @@
-// Package gdriver provides an afero Fs interface to Google Drive API
+// Package gdrive provides an afero Fs interface to Google Drive API
 package gdrive
 
 import (
@@ -35,6 +35,12 @@ type HashMethod int
 const (
 	mimeTypeFolder = "application/vnd.google-apps.folder"
 	mimeTypeFile   = "application/octet-stream"
+
+	// We should probably ignore these types of files:
+	// mimeTypeDocument     = "application/vnd.google-apps.document"
+	// mimeTypeSpreadsheet  = "application/vnd.google-apps.spreadsheet"
+	// mimeTypePresentation = "application/vnd.google-apps.presentation"
+	// mimeTypeDrawing      = "application/vnd.google-apps.drawing"
 )
 
 var (
@@ -489,7 +495,7 @@ func (d *GDriver) trashPath(path string) error {
 
 // ListTrash lists the contents of the trash
 // if you specify directories it will only list the trash contents of the specified directories
-func (d *GDriver) ListTrash(filePath string, count int) ([]*FileInfo, error) {
+func (d *GDriver) ListTrash(filePath string, _ int) ([]*FileInfo, error) {
 	file, err := d.getFile(filePath, "files(id,name)")
 	if err != nil {
 		return nil, err
@@ -624,7 +630,7 @@ func (d *GDriver) Open(name string) (afero.File, error) {
 }
 
 // OpenFile opens a File in the traditional os.Open way
-func (d *GDriver) OpenFile(path string, flag int, perm os.FileMode) (afero.File, error) {
+func (d *GDriver) OpenFile(path string, flag int, _ os.FileMode) (afero.File, error) {
 	if path == "" {
 		return nil, ErrEmptyPath
 	}

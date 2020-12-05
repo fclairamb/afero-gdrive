@@ -1,6 +1,7 @@
 package gdrive // nolint: golint
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -114,7 +115,7 @@ func (f *File) Read(p []byte) (int, error) {
 	n, err := f.streamRead.Read(p)
 	f.streamOffset += int64(n)
 
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		err = &DriveStreamError{Err: err}
 	}
 
@@ -129,7 +130,7 @@ func (f *File) Write(p []byte) (int, error) {
 	n, err := f.streamWrite.Write(p)
 	f.streamOffset += int64(n)
 
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		err = &DriveStreamError{Err: err}
 	}
 
@@ -167,13 +168,10 @@ func (f *File) Close() error {
 	} else if f.streamRead != nil {
 		err := f.streamRead.Close()
 		f.streamRead = nil
-		if err != nil {
-			if err != io.EOF {
-				err = &DriveStreamError{Err: err}
-			}
-
-			return err
+		if err != nil && !errors.Is(err, io.EOF) {
+			err = &DriveStreamError{Err: err}
 		}
+		return err
 	}
 
 	return nil

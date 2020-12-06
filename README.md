@@ -1,7 +1,12 @@
 # Afero Google Drive Driver
 
+![Build](https://github.com/fclairamb/afero-gdrive/workflows/Build/badge.svg)
+[![codecov](https://codecov.io/gh/fclairamb/afero-gdrive/branch/master/graph/badge.svg?token=ZPOTDLRY7Y)](https://codecov.io/gh/fclairamb/afero-gdrive)
+[![Go Report Card](https://goreportcard.com/badge/fclairamb/afero-gdrive)](https://goreportcard.com/report/fclairamb/afero-gdrive)
+[![GoDoc](https://godoc.org/github.com/fclairamb/afero-gdrive?status.svg)](https://godoc.org/github.com/fclairamb/afero-gdrive)
+
 ## About
-It provides an [afero filesystem](https://github.com/spf13/afero/) implementation of a [Google Drive](https://aws.amazon.com/s3/) backend.
+It provides an [afero filesystem](https://github.com/spf13/afero/) implementation of a [Google Drive](https://developers.google.com/drive) backend.
 
 This was created to provide a backend to the [ftpserver](https://github.com/fclairamb/ftpserver) but can definitely be used in any other code.
 

@@ -57,7 +57,8 @@ jobs:
           GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
         run: |
           apt-get update && apt-get install gcc -y
-          go test -coverprofile=cover.out -v ./...
+          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+          bash <(curl -s https://codecov.io/bash)
 
   # For github to have a unique status check name
   build-status:

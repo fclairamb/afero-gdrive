@@ -16,7 +16,7 @@ I'm very opened to any improvement through issues or pull-request that might lea
 ## Known limitations
 - File appending / seeking for write is not supported because Google Drive doesn't support it, it could be simulated by rewriting entire files.
 - Chmod is saved as a property and not used at this time.
-- No files listing cache. This means that every directory of a path results in a requests, every single time a path is analyzed.
+- No files listing cache. This means that every directory of a path results in a request that happens every single time a path is analyzed. In other word opening `/a/b/c/file.txt` for writing will create at least 4 request, and the same will happen for reading.
 
 ## How to use
 Note: Errors handling is skipped for brevity but you definitely have to handle it.
@@ -28,16 +28,16 @@ import (
 
 func main() {
   // We declare the OAuh2 app
-	helper := oauthhelper.Auth{
-		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		Authenticate: func(url string) (string, error) {
-			return "", ErrNotSupported
-		},
-	}
+  helper := oauthhelper.Auth{
+    ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+    ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+    Authenticate: func(url string) (string, error) {
+     return "", ErrNotSupported
+    },
+  }
 
   // Pass a token 
-	token, _ := base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_TOKEN"))
+  token, _ := base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_TOKEN"))
 	
   // Initialize the authenticated client
   client, _ := helper.NewHTTPClient(context.Background())

@@ -14,7 +14,7 @@ I'm very opened to any improvement through issues or pull-request that might lea
 
 ## Key points
 - Download & upload file streaming
-- 65% coverage: This isn't great, I intend to improve it to reach 80%. As it's a third-party API more would take way too much time.
+- 50% coverage: This isn't great, I intend to improve it to reach 80%. As it's a third-party API more would take way too much time.
 - Very carefully linted
 
 

@@ -410,7 +410,7 @@ func TestListDirectory(t *testing.T) {
 			dir, err := driver.Open("Folder1")
 			require.NoError(t, err)
 
-			files, err := dir.Readdir(1000)
+			files, err := dir.Readdir(2000)
 			require.NoError(t, err)
 
 			require.Len(t, files, 0)

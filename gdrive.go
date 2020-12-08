@@ -128,21 +128,29 @@ func (d *GDriver) Stat(path string) (os.FileInfo, error) {
 	return d.getFile(path, listFields...)
 }
 
-func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) {
-	if !fi.IsDir() {
-		return nil, FileIsNotDirectoryError{Fi: fi}
+const filesListPageSizeMax = 1000
+
+func (d *GDriver) listDirectory(f *File, count int) ([]os.FileInfo, error) {
+	if !f.FileInfo.IsDir() {
+		return nil, FileIsNotDirectoryError{Fi: f.FileInfo}
 	}
 
-	pageToken := ""
 	files := make([]os.FileInfo, 0)
 
 	for count < 0 || len(files) < count {
-		call := d.srv.Files.List().
-			Q(fmt.Sprintf("'%s' in parents and trashed = false", fi.file.Id)).
-			Fields(append(listFields, "nextPageToken")...)
+		pageSize := int64(count - len(files))
+		if pageSize > filesListPageSizeMax {
+			pageSize = filesListPageSizeMax
+		}
 
-		if pageToken != "" {
-			call = call.PageToken(pageToken)
+		call := d.srv.Files.List().
+			Q(fmt.Sprintf("'%s' in parents and trashed = false", f.FileInfo.file.Id)).
+			Fields(append(listFields, "nextPageToken")...).
+			OrderBy("name").
+			PageSize(pageSize)
+
+		if f.dirListToken != "" {
+			call = call.PageToken(f.dirListToken)
 		}
 
 		descendants, err := call.Do()
@@ -151,17 +159,19 @@ func (d *GDriver) listDirectory(fi *FileInfo, count int) ([]os.FileInfo, error) 
 		}
 
 		if descendants == nil {
-			return nil, &NoFileInformationError{Fi: fi}
+			return nil, &NoFileInformationError{Fi: f.FileInfo}
 		}
 
 		for i := 0; i < len(descendants.Files); i++ {
 			files = append(files, &FileInfo{
 				file:       descendants.Files[i],
-				parentPath: fi.Path(),
+				parentPath: f.FileInfo.Path(),
 			})
 		}
 
-		if pageToken = descendants.NextPageToken; pageToken == "" {
+		f.dirListToken = descendants.NextPageToken
+
+		if f.dirListToken == "" {
 			break
 		}
 	}
@@ -607,7 +617,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 		}
 
 		if files == nil || len(files.Files) == 0 {
-			return nil, FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
+			return nil, &FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
 		}
 
 		if len(files.Files) > 1 {
@@ -676,14 +686,14 @@ func (d *GDriver) OpenFile(path string, flag int, _ os.FileMode) (afero.File, er
 
 			fileExists = true
 		} else {
-			return nil, FileNotExistError{Path: path}
+			return nil, &FileNotExistError{Path: path}
 		}
 	}
 
 	// If we're in write mode
 	if flag&os.O_WRONLY != 0 {
 		if !fileExists {
-			return nil, FileNotExistError{Path: path}
+			return nil, &FileNotExistError{Path: path}
 		}
 
 		return d.openFileWrite(file, path)

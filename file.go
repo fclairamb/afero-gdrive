@@ -17,13 +17,14 @@ func (f *File) AsAfero() afero.File {
 
 // File represents the managed file structure
 type File struct {
-	*FileInfo
-	Path           string
-	driver         *GDriver
-	streamRead     io.ReadCloser
-	streamWrite    io.WriteCloser
-	streamWriteEnd chan error
-	streamOffset   int64
+	*FileInfo                     // FileInfo contains the core fileInfo
+	Path           string         // Path is the complete path of hte file
+	driver         *GDriver       // driver is a reference to the parent driver
+	streamRead     io.ReadCloser  // streamRead is the underlying reading stream
+	streamWrite    io.WriteCloser // streamWrite is the underlying writing stream
+	streamWriteEnd chan error     // streamWriteEnd is a channel returning the error of the underlying write stream
+	streamOffset   int64          // streamOffset is the position of the stream
+	dirListToken   string         // dirListToken contains the token used to list files
 }
 
 // Seek sets the offset for the next Read or Write to offset
@@ -82,7 +83,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 
 // Readdir provides a list of file information
 func (f *File) Readdir(count int) ([]os.FileInfo, error) {
-	return f.driver.listDirectory(f.FileInfo, count)
+	return f.driver.listDirectory(f, count)
 }
 
 // Readdirnames provides a list of directory names

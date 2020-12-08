@@ -785,3 +785,7 @@ func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 
 	return nil
 }
+
+func (d *GDriver) Chown(string, int, int) error {
+	return ErrNotSupported
+}

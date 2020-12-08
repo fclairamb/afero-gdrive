@@ -617,7 +617,7 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 		}
 
 		if files == nil || len(files.Files) == 0 {
-			return nil, FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
+			return nil, &FileNotExistError{Path: path.Join(pathParts[:i+1]...)}
 		}
 
 		if len(files.Files) > 1 {
@@ -686,14 +686,14 @@ func (d *GDriver) OpenFile(path string, flag int, _ os.FileMode) (afero.File, er
 
 			fileExists = true
 		} else {
-			return nil, FileNotExistError{Path: path}
+			return nil, &FileNotExistError{Path: path}
 		}
 	}
 
 	// If we're in write mode
 	if flag&os.O_WRONLY != 0 {
 		if !fileExists {
-			return nil, FileNotExistError{Path: path}
+			return nil, &FileNotExistError{Path: path}
 		}
 
 		return d.openFileWrite(file, path)

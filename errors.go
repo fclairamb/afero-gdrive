@@ -53,12 +53,10 @@ func (e FileExistError) Error() string {
 	return fmt.Sprintf("\"%s\" already exists", e.Path)
 }
 
-var fileNotExistError FileNotExistError
-
 // IsNotExist returns true if the error is an FileNotExistError
 func IsNotExist(e error) bool {
-	is := errors.As(e, &fileNotExistError)
-	return is
+	var fileNotExistError *FileNotExistError
+	return errors.As(e, &fileNotExistError)
 }
 
 // FileIsDirectoryError will be thrown if a File is a directory

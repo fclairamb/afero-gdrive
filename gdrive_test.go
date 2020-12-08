@@ -763,6 +763,22 @@ func TestOpen(t *testing.T) {
 	})
 }
 
+func TestErrNotSupported(t *testing.T) {
+	driver := setup(t)
+
+	t.Run("Chown", func(t *testing.T) {
+		mustWriteFile(t, driver, "Chown")
+		require.EqualError(t, driver.Chown("Chown", 2000, 2000), ErrNotSupported.Error())
+	})
+
+	t.Run("Truncate", func(t *testing.T) {
+		mustWriteFile(t, driver, "Truncate")
+		f, err := driver.Open("Truncate")
+		require.NoError(t, err)
+		require.EqualError(t, f.Truncate(0), ErrNotSupported.Error())
+	})
+}
+
 func writeFile(driver afero.Fs, path string, content io.Reader) error {
 	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
 	if err != nil {

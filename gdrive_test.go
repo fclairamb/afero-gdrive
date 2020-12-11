@@ -362,8 +362,7 @@ func TestListDirectory(t *testing.T) {
 		mustWriteFile(t, driver, "Folder1/File1")
 		mustWriteFile(t, driver, "Folder1/File2")
 
-		// var files []*FileInfo
-		{
+		t.Run("listing 1000", func(t *testing.T) {
 			dir, err := driver.Open("Folder1")
 			require.NoError(t, err)
 
@@ -379,7 +378,17 @@ func TestListDirectory(t *testing.T) {
 
 			require.Equal(t, "File1", files[0].Name())
 			require.Equal(t, "File2", files[1].Name())
-		}
+		})
+
+		t.Run("listing no limit", func(t *testing.T) {
+			dir, err := driver.Open("Folder1")
+			require.NoError(t, err)
+
+			files, err := dir.Readdir(-1)
+			require.NoError(t, err)
+
+			require.Len(t, files, 2)
+		})
 
 		// Partial listing
 		t.Run("partial", func(t *testing.T) {

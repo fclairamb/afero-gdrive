@@ -139,7 +139,7 @@ func (d *GDriver) listDirectory(f *File, count int) ([]os.FileInfo, error) {
 
 	for count < 0 || len(files) < count {
 		pageSize := int64(count - len(files))
-		if pageSize > filesListPageSizeMax {
+		if pageSize > filesListPageSizeMax || pageSize <= 0 {
 			pageSize = filesListPageSizeMax
 		}
 

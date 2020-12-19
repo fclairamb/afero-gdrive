@@ -558,10 +558,6 @@ func (d *GDriver) getFile(path string, fields ...googleapi.Field) (*FileInfo, er
 }
 
 func (d *GDriver) getFileOnRootNode(rootNode *FileInfo, path string, fields ...googleapi.Field) (*FileInfo, error) {
-	if path == "" {
-		return nil, ErrForbiddenOnRoot
-	}
-
 	spl := strings.FieldsFunc(path, isPathSeperator)
 
 	return d.getFileByParts(rootNode, spl, fields...)

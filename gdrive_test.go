@@ -19,13 +19,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fclairamb/afero-gdrive/log/gokit"
-	"github.com/fclairamb/afero-gdrive/oauthhelper"
 	"github.com/hjson/hjson-go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
+
+	"github.com/fclairamb/afero-gdrive/log/gokit"
+	"github.com/fclairamb/afero-gdrive/oauthhelper"
 )
 
 var (
@@ -692,22 +693,45 @@ func TestOpen(t *testing.T) {
 			})
 		})
 		t.Run("existing big File", func(t *testing.T) {
-			driver := setup(t).AsAfero()
+			driver := setup(t)
 
 			var buf [4096*3 + 15]byte
 			_, err := rand.Read(buf[:])
 			require.NoError(t, err)
 
-			err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
-			require.NoError(t, err)
+			t.Run("no buffer", func(t *testing.T) {
+				var f afero.File
+				var data []byte
 
-			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
-			require.NoError(t, err)
-			defer func() { require.NoError(t, f.Close()) }()
+				err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
+				require.NoError(t, err)
 
-			data, err := ioutil.ReadAll(f)
-			require.NoError(t, err)
-			require.EqualValues(t, buf[:], data)
+				f, err = driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
+				require.NoError(t, err)
+				defer func() { require.NoError(t, f.Close()) }()
+
+				data, err = ioutil.ReadAll(f)
+				require.NoError(t, err)
+				require.EqualValues(t, buf[:], data)
+			})
+
+			t.Run("with buffer", func(t *testing.T) {
+				var f afero.File
+				var data []byte
+
+				driver.WriteBufferSize = 1024 * 1024 // 1MB
+
+				err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
+				require.NoError(t, err)
+
+				f, err = driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
+				require.NoError(t, err)
+				defer func() { require.NoError(t, f.Close()) }()
+
+				data, err = ioutil.ReadAll(f)
+				require.NoError(t, err)
+				require.EqualValues(t, buf[:], data)
+			})
 		})
 		t.Run("non-existing File", func(t *testing.T) {
 			driver := setup(t).AsAfero()

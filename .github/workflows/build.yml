@@ -60,17 +60,6 @@ jobs:
           go test -parallel 20 -v -race -coverprofile=coverage.txt -covermode=atomic ./... -bench=./...
           bash <(curl -s https://codecov.io/bash)
 
-      - name: Bench data
-        if: matrix.test
-        uses: bobheadxi/gobenchdata@v1
-        with:
-          PRUNE_COUNT: 30
-          # GO_TEST_FLAGS: -cpu 1,2
-          PUBLISH: true
-          PUBLISH_BRANCH: gh-pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-
   # For github to have a unique status check name
   build-status:
     needs: build

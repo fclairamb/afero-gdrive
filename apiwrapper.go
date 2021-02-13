@@ -37,8 +37,17 @@ func NewAPIWrapper(srv *drive.Service, logger log.Logger) *APIWrapper {
 	}
 }
 
-func (a *APIWrapper) called(apiName string) {
+func (a *APIWrapper) calling(apiName string) {
 	atomic.AddInt32(a.calls[apiName], 1)
+}
+
+// TotalNbCalls returns the total number of calls performed to the API
+func (a *APIWrapper) TotalNbCalls() int {
+	nb := int32(0)
+	for _, c := range a.calls {
+		nb += *c
+	}
+	return int(nb)
 }
 
 // createFile wraps a call to the Files.Create
@@ -48,7 +57,7 @@ func (a *APIWrapper) createFile(
 	mimeType string,
 	fields ...googleapi.Field,
 ) (*drive.File, error) {
-	defer a.called("Files.Create")
+	a.calling("Files.Create")
 
 	call := a.srv.Files.Create(&drive.File{
 		Name:        sanitizeName(fileName),
@@ -67,9 +76,40 @@ func (a *APIWrapper) createFile(
 
 	if err == nil {
 		a.cache.CleanupByPrefix(fmt.Sprintf("%s-", folderID))
+	} else {
+		err = &DriveAPICallError{Err: err}
 	}
 
 	return file, err
+}
+
+func (a *APIWrapper) renameFile(file *drive.File, targetFolder *drive.File, targetName string) error {
+	a.calling("Files.Update")
+
+	call := a.srv.Files.Update(
+		file.Id,
+		&drive.File{
+			Name: sanitizeName(targetName),
+		},
+	)
+
+	if file.Parents[0] != targetFolder.Id {
+		call = call.
+			RemoveParents(file.Parents[0]).
+			AddParents(targetFolder.Id)
+	}
+
+	_, err := call.Do()
+
+	if err != nil {
+		return &DriveAPICallError{Err: err}
+	}
+
+	// Removing cache of source and target folders
+	a.cache.CleanupByPrefix(fmt.Sprintf("%s-", file.Parents[0]))
+	a.cache.CleanupByPrefix(fmt.Sprintf("%s-", targetFolder.Id))
+
+	return nil
 }
 
 // deleteFile wraps a call to Files.Update or Files.Delete
@@ -78,10 +118,10 @@ func (a *APIWrapper) deleteFile(file *drive.File, trash bool) error {
 	var err error
 
 	if trash {
-		defer a.called("Files.Update")
+		a.calling("Files.Update")
 		_, err = a.srv.Files.Update(file.Id, &drive.File{Trashed: true}).Do()
 	} else {
-		defer a.called("Files.Delete")
+		a.calling("Files.Delete")
 		err = a.srv.Files.Delete(file.Id).Do()
 	}
 
@@ -95,7 +135,7 @@ func (a *APIWrapper) deleteFile(file *drive.File, trash bool) error {
 		}
 	}
 
-	return err
+	return &DriveAPICallError{Err: err}
 }
 
 func (a *APIWrapper) getFileByFolderAndName(
@@ -105,7 +145,7 @@ func (a *APIWrapper) getFileByFolderAndName(
 ) (*drive.FileList, error) {
 	queryFields := googleapi.CombineFields(fields)
 	if queryFields == "" {
-		queryFields = "files(id,mimeType)"
+		queryFields = "files(id,mimeType,parents)"
 	}
 
 	cacheKey := fmt.Sprintf("%s-getFileByFolderAndName-%s-%s", folderID, fileName, queryFields)
@@ -129,7 +169,7 @@ func (a *APIWrapper) _getFileByFolderAndName(
 	fileName string,
 	fields googleapi.Field,
 ) (*drive.FileList, error) {
-	defer a.called("Files.List")
+	a.calling("Files.List")
 
 	query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", folderID, sanitizeName(fileName))
 	call := a.srv.Files.List().Q(query).Fields(fields)

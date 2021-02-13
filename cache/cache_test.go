@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	asrt "github.com/stretchr/testify/assert"
+	ast "github.com/stretchr/testify/assert"
 )
 
 func TestBasics(t *testing.T) {
 	c := NewCache()
-	assert := asrt.New(t)
+	assert := ast.New(t)
 
 	c.Set("key1", "value1")
 	c.Set("key2", "value2")
@@ -35,7 +35,7 @@ func TestBasics(t *testing.T) {
 
 func TestPrefixCleanup(t *testing.T) {
 	c := NewCache()
-	assert := asrt.New(t)
+	assert := ast.New(t)
 
 	c.Set("pre1-key1", "value1")
 	c.Set("pre1-key2", "value2")

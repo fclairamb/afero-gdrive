@@ -317,7 +317,7 @@ func TestGetFile(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	t.Run("delete File", func(t *testing.T) {
+	t.Run("delete file", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
 		mustWriteFile(t, driver, "File1")

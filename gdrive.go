@@ -21,6 +21,15 @@ import (
 	"github.com/fclairamb/afero-gdrive/log"
 )
 
+type WriteBufferType string
+
+const (
+	WriteBufferNone   WriteBufferType = ""
+	WriteBufferSimple                 = "simple"
+	WriteBufferAsync                  = "async"
+	WriteBufferChan                   = "chan"
+)
+
 // GDriver can be used to access google drive in a traditional File-folder-path pattern
 type GDriver struct {
 	srv                 *drive.Service
@@ -28,6 +37,7 @@ type GDriver struct {
 	Logger              log.Logger
 	LogReaderAndWriters bool
 	TrashForDelete      bool
+	WriteBufferType     WriteBufferType
 	WriteBufferSize     int
 	srvWrapper          *APIWrapper
 }
@@ -458,21 +468,6 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 	return nil
 }
 
-// Trash trashes a File or directory
-/*
-func (d *GDriver) trash(fi *FileInfo) error {
-	_, err := d.srv.Files.Update(fi.file.Id, &drive.File{
-		Trashed: true,
-	}).Do()
-
-	if err != nil {
-		return &DriveAPICallError{Err: err}
-	}
-
-	return nil
-}
-*/
-
 func (d *GDriver) trashPath(path string) error {
 	fi, err := d.getFile(path)
 	if err != nil {
@@ -692,14 +687,33 @@ func (d *GDriver) openFileRead(file *FileInfo) (afero.File, error) {
 	}, nil
 }
 
+func (d *GDriver) wrapWriteCloser(dst io.WriteCloser) (io.WriteCloser, error) {
+	if d.WriteBufferSize == 0 {
+		return dst, nil
+	}
+
+	switch d.WriteBufferType {
+	case WriteBufferNone:
+		return dst, nil
+	case WriteBufferSimple:
+		return iohelper.NewBufferedWriteCloser(dst, d.WriteBufferSize), nil
+	case WriteBufferChan:
+		return iohelper.NewAsyncWriterChannel(dst, d.WriteBufferSize), nil
+	case WriteBufferAsync:
+		return iohelper.NewAsyncWriterBuffer(dst, d.WriteBufferSize), nil
+	default:
+		return nil, ErrUnknownBufferType
+	}
+}
+
 func (d *GDriver) openFileWrite(file *FileInfo, path string) (afero.File, error) {
 	writer, endErr, err := d.getFileWriter(file)
 	if err != nil {
 		return nil, err
 	}
 
-	if d.WriteBufferSize > 0 {
-		writer = iohelper.NewBufferedWriteCloser(writer, d.WriteBufferSize)
+	if writerBuffer, err := d.wrapWriteCloser(writer); err != nil {
+		writer = writerBuffer
 	}
 
 	return &File{

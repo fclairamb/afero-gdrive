@@ -117,6 +117,32 @@ func setup(t *testing.T) *GDriver {
 	return driver
 }
 
+// This isn't an actual test, it's only to make sure tests left in a dirty state
+// are properly cleaned up at some point.
+func TestCleanupTests(t *testing.T) {
+	req := require.New(t)
+	driver := setup(t)
+
+	_, err := driver.SetRootDirectory("/")
+	req.NoError(err)
+
+	root, err := driver.Open("/")
+	req.NoError(err)
+
+	dirs, err := root.Readdir(100)
+	req.NoError(err)
+
+	old := time.Now().UTC().Add(-time.Hour)
+
+	for _, d := range dirs {
+		if d.ModTime().Before(old) {
+			err := driver.DeleteDirectory(d.Name())
+			t.Log("Deleting old file:", d.Name())
+			req.NoError(err)
+		}
+	}
+}
+
 func TestMakeDirectory(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		driver := setup(t).AsAfero()
@@ -198,6 +224,31 @@ func TestFileFolderMixup(t *testing.T) {
 
 	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
 	require.EqualError(t, err, "couldn't open file: file Folder1/File1 is not a directory")
+}
+
+func TestFileWriteBuffer(t *testing.T) {
+	driver := setup(t)
+	driver.WriteBufferSize = 1024 * 16
+
+	t.Run("without buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferNone
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
+
+	t.Run("with basic buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferSimple
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
+
+	t.Run("with async buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferAsync
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
+
+	t.Run("with async chan buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferChan
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
 }
 
 func TestCreateFile(t *testing.T) {

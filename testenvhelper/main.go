@@ -1,3 +1,4 @@
+// This program helps the setup of credentials for tests
 package main
 
 import (
@@ -7,8 +8,6 @@ import (
 
 	"github.com/fclairamb/afero-gdrive/oauthhelper"
 )
-
-// This piece of code is here to help us create credentials for test
 
 func main() {
 	h := oauthhelper.Auth{

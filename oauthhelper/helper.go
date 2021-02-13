@@ -107,10 +107,12 @@ func StoreTokenToFile(file string, token *oauth2.Token) error {
 	return nil
 }
 
+// GetTokenBase64 returns the Base64 representation of JSON token
 func GetTokenBase64(token *oauth2.Token) (string, error) {
 	jb, err := json.Marshal(token)
 	if err != nil {
 		return "", err
 	}
+
 	return base642.URLEncoding.EncodeToString(jb), nil
 }

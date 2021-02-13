@@ -138,6 +138,7 @@ func (a *APIWrapper) deleteFile(file *drive.File, trash bool) error {
 			a.cache.CleanupByPrefix(p)
 		}
 	}
+
 	return nil
 }
 

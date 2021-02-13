@@ -3,6 +3,7 @@ package oauthhelper
 
 import (
 	"context"
+	base642 "encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -104,4 +105,12 @@ func StoreTokenToFile(file string, token *oauth2.Token) error {
 	}
 
 	return nil
+}
+
+func GetTokenBase64(token *oauth2.Token) (string, error) {
+	jb, err := json.Marshal(token)
+	if err != nil {
+		return "", err
+	}
+	return base642.URLEncoding.EncodeToString(jb), nil
 }

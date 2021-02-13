@@ -127,17 +127,18 @@ func (a *APIWrapper) deleteFile(file *drive.File, trash bool) error {
 		err = a.srv.Files.Delete(file.Id).Do()
 	}
 
-	if err == nil {
-		if file.MimeType == mimeTypeFolder {
-			a.cache.CleanupEverything()
-		} else {
-			for _, p := range file.Parents {
-				a.cache.CleanupByPrefix(p)
-			}
-		}
+	if err != nil {
+		return &DriveAPICallError{Err: err}
 	}
 
-	return &DriveAPICallError{Err: err}
+	if file.MimeType == mimeTypeFolder {
+		a.cache.CleanupEverything()
+	} else {
+		for _, p := range file.Parents {
+			a.cache.CleanupByPrefix(p)
+		}
+	}
+	return nil
 }
 
 func (a *APIWrapper) getFileByFolderAndName(

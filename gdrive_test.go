@@ -38,12 +38,7 @@ func varInit() {
 	prefix = time.Now().UTC().Format("20060102_150405.000000")
 }
 
-func setup(t *testing.T) *GDriver {
-	initOnce.Do(varInit)
-
-	// All of our tests can run in parallel
-	t.Parallel()
-
+func loadEnvFromFile(t *testing.T) {
 	env, err := ioutil.ReadFile(".env.json")
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -64,6 +59,15 @@ func setup(t *testing.T) *GDriver {
 			}
 		}
 	}
+}
+
+func setup(t *testing.T) *GDriver {
+	initOnce.Do(varInit)
+
+	// All of our tests can run in parallel
+	t.Parallel()
+
+	loadEnvFromFile(t)
 
 	helper := oauthhelper.Auth{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
@@ -74,14 +78,19 @@ func setup(t *testing.T) *GDriver {
 	}
 	var client *http.Client
 	var driver *GDriver
-	var token []byte
+	var err error
 
-	token, err = base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_TOKEN"))
-	require.NoError(t, err)
+	{
+		envToken := os.Getenv("GOOGLE_TOKEN")
+		if envToken != "" {
+			var token []byte
+			token, err = base64.StdEncoding.DecodeString(envToken)
+			require.NoError(t, err)
 
-	helper.Token = new(oauth2.Token)
-
-	require.NoError(t, json.Unmarshal(token, helper.Token))
+			helper.Token = new(oauth2.Token)
+			require.NoError(t, json.Unmarshal(token, helper.Token))
+		}
+	}
 
 	client, err = helper.NewHTTPClient(context.Background())
 	require.NoError(t, err)

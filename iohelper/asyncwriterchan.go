@@ -41,9 +41,11 @@ func NewAsyncWriterChannel(writer io.WriteCloser, bufferSize int) *AsyncWriterCh
 func (aw *AsyncWriterChannel) addToChan(buf []byte) {
 	aw.bufferSizeMu.Lock()
 	defer aw.bufferSizeMu.Unlock()
+
 	for !aw.closed && aw.bufferSize > aw.maxSize {
 		aw.bufferSizeHigh.Wait()
 	}
+
 	aw.bufferSize += int64(len(buf))
 	aw.writeChan <- buf
 }

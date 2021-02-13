@@ -76,6 +76,7 @@ func (aw *AsyncWriterBuffer) Write(data []byte) (int, error) {
 
 		n, err := aw.buffer.Write(writedata)
 		aw.bufferWrite.Signal()
+
 		written += n
 
 		if err != nil {
@@ -95,6 +96,7 @@ func (aw *AsyncWriterBuffer) nextRead(buffer []byte) (int, error) {
 	}
 
 	defer aw.bufferRead.Signal()
+
 	return aw.buffer.Read(buffer)
 }
 
@@ -110,8 +112,7 @@ func (aw *AsyncWriterBuffer) run() {
 		}
 
 		for len(b) > 0 {
-			// log.Printf("dst.Write: %x", b)
-			n, err := aw.dstWriter.Write(b[0:n])
+			n, err = aw.dstWriter.Write(b[0:n])
 
 			if err != nil && len(aw.writeErr) == 0 {
 				aw.writeErr <- err
@@ -146,5 +147,6 @@ func (aw *AsyncWriterBuffer) Close() error {
 	}
 
 	<-aw.closeErr
+
 	return nil
 }

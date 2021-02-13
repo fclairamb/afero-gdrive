@@ -21,13 +21,18 @@ import (
 	"github.com/fclairamb/afero-gdrive/log"
 )
 
+// WriteBufferType defines the type of buffer we want to use to read & write files
 type WriteBufferType string
 
 const (
-	WriteBufferNone   WriteBufferType = ""
-	WriteBufferSimple                 = "simple"
-	WriteBufferAsync                  = "async"
-	WriteBufferChan                   = "chan"
+	// WriteBufferNone means no buffer
+	WriteBufferNone WriteBufferType = ""
+	// WriteBufferSimple means a simple io.Buffer
+	WriteBufferSimple WriteBufferType = "simple"
+	// WriteBufferAsync means an asynchronous io.Buffer
+	WriteBufferAsync WriteBufferType = "async"
+	// WriteBufferChan means an asynchronous channel-based set of buffers
+	WriteBufferChan WriteBufferType = "chan"
 )
 
 // GDriver can be used to access google drive in a traditional File-folder-path pattern

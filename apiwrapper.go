@@ -47,6 +47,7 @@ func (a *APIWrapper) TotalNbCalls() int {
 	for _, c := range a.calls {
 		nb += *c
 	}
+
 	return int(nb)
 }
 
@@ -83,6 +84,7 @@ func (a *APIWrapper) createFile(
 	return file, err
 }
 
+// nolint: unused
 func (a *APIWrapper) renameFile(file *drive.File, targetFolder *drive.File, targetName string) error {
 	a.calling("Files.Update")
 

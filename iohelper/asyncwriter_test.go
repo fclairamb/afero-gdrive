@@ -72,10 +72,13 @@ func createBuffer(size int) []byte {
 	for i := 0; i < size; i++ {
 		buffer[i] = byte(i % 256)
 	}
+
 	return buffer
 }
 
 func benchWriterBuf(b *testing.B, dst io.WriteCloser, size int) {
+	b.ReportAllocs()
+
 	buf := createBuffer(size)
 
 	b.SetBytes(int64(size) * int64(b.N))

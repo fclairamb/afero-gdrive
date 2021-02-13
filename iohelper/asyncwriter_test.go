@@ -101,6 +101,11 @@ func BenchmarkWriterChan(b *testing.B) {
 	benchWriterBuf(b, buf, 2048)
 }
 
+func BenchmarkSimpleBuf(b *testing.B) {
+	buf := NewBufferedWriteCloser(&EmptyWriter{}, 4096)
+	benchWriterBuf(b, buf, 2048)
+}
+
 func TestWriterBuf(t *testing.T) {
 	refHash := ""
 	{

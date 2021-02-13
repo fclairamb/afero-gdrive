@@ -10,5 +10,5 @@ require (
 	github.com/spf13/afero v1.5.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
-	google.golang.org/api v0.36.0
+	google.golang.org/api v0.40.0
 )

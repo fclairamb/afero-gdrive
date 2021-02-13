@@ -2,7 +2,6 @@
 package gdrive
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,11 +12,27 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fclairamb/afero-gdrive/log"
 	"github.com/spf13/afero"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+
+	"github.com/fclairamb/afero-gdrive/iohelper"
+	"github.com/fclairamb/afero-gdrive/log"
+)
+
+// WriteBufferType defines the type of buffer we want to use to read & write files
+type WriteBufferType string
+
+const (
+	// WriteBufferNone means no buffer
+	WriteBufferNone WriteBufferType = ""
+	// WriteBufferSimple means a simple io.Buffer
+	WriteBufferSimple WriteBufferType = "simple"
+	// WriteBufferAsync means an asynchronous io.Buffer
+	WriteBufferAsync WriteBufferType = "async"
+	// WriteBufferChan means an asynchronous channel-based set of buffers
+	WriteBufferChan WriteBufferType = "chan"
 )
 
 // GDriver can be used to access google drive in a traditional File-folder-path pattern
@@ -27,6 +42,9 @@ type GDriver struct {
 	Logger              log.Logger
 	LogReaderAndWriters bool
 	TrashForDelete      bool
+	WriteBufferType     WriteBufferType
+	WriteBufferSize     int
+	srvWrapper          *APIWrapper
 }
 
 // HashMethod is the hashing method to use for GetFileHash
@@ -86,6 +104,8 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 			return nil, err
 		}
 	}
+
+	driver.srvWrapper = NewAPIWrapper(driver.srv, driver.Logger.With("component", "api"))
 
 	return driver, nil
 }
@@ -196,13 +216,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 	parentNode := d.rootNode
 
 	for i := 0; i < len(pathParts); i++ {
-		query := fmt.Sprintf(
-			"'%s' in parents and name='%s' and trashed = false",
-			parentNode.file.Id,
-			sanitizeName(pathParts[i]),
-		)
-
-		files, err := d.srv.Files.List().Q(query).Fields(listFields...).Do()
+		files, err := d.srvWrapper.getFileByFolderAndName(parentNode.file.Id, pathParts[i], listFields...)
 		if err != nil {
 			return nil, &DriveAPICallError{Err: err}
 		}
@@ -223,13 +237,12 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 				}
 				var createdDir *drive.File
 
-				createdDir, err = d.srv.Files.Create(&drive.File{
-					Name:     sanitizeName(pathParts[i]),
-					MimeType: mimeTypeFolder,
-					Parents: []string{
-						parentNode.file.Id,
-					},
-				}).Fields(fileInfoFields...).Do()
+				createdDir, err = d.srvWrapper.createFile(
+					parentNode.file.Id,
+					pathParts[i],
+					mimeTypeFolder,
+					fileInfoFields...,
+				)
 				if err != nil {
 					return nil, &DriveAPICallError{Err: err}
 				}
@@ -258,7 +271,7 @@ func (d *GDriver) makeDirectoryByParts(pathParts []string) (*FileInfo, error) {
 
 // DeleteDirectory will delete a directory and its descendants
 func (d *GDriver) DeleteDirectory(path string) error {
-	file, err := d.getFile(path, "files(id,mimeType)")
+	file, err := d.getFile(path)
 	if err != nil {
 		return err
 	}
@@ -275,15 +288,7 @@ func (d *GDriver) DeleteDirectory(path string) error {
 }
 
 func (d *GDriver) deleteFile(fi *FileInfo) error {
-	var err error
-
-	if d.TrashForDelete {
-		_, err = d.srv.Files.Update(fi.file.Id, &drive.File{Trashed: true}).Do()
-	} else {
-		err = d.srv.Files.Delete(fi.file.Id).Do()
-	}
-
-	if err != nil {
+	if err := d.srvWrapper.deleteFile(fi.file, d.TrashForDelete); err != nil {
 		return &DriveAPICallError{Err: err}
 	}
 
@@ -409,16 +414,7 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 		}
 	}
 
-	file, err := d.srv.Files.Create(
-		&drive.File{
-			Name:        sanitizeName(pathParts[amountOfParts-1]),
-			MimeType:    mimeTypeFile,
-			Description: "Created by https://github.com/fclairamb/afero-gdrive",
-			Parents: []string{
-				parentNode.file.Id,
-			},
-		},
-	).Fields(fileInfoFields...).Media(bytes.NewReader([]byte{})).Do()
+	file, err := d.srvWrapper.createFile(parentNode.file.Id, pathParts[amountOfParts-1], mimeTypeFile, fileInfoFields...)
 	if err != nil {
 		return nil, &DriveAPICallError{Err: err}
 	}
@@ -477,30 +473,13 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 	return nil
 }
 
-// Trash trashes a File or directory
-func (d *GDriver) trash(fi *FileInfo) error {
-	_, err := d.srv.Files.Update(fi.file.Id, &drive.File{
-		Trashed: true,
-	}).Do()
-
-	if err != nil {
-		return &DriveAPICallError{Err: err}
-	}
-
-	return nil
-}
-
 func (d *GDriver) trashPath(path string) error {
-	if path == "" {
-		return ErrForbiddenOnRoot
-	}
-
-	fi, err := d.getFile(path, "files(id)")
+	fi, err := d.getFile(path)
 	if err != nil {
 		return err
 	}
 
-	return d.trash(fi)
+	return d.srvWrapper.deleteFile(fi.file, true)
 }
 
 // ListTrash lists the contents of the trash
@@ -580,6 +559,7 @@ func (d *GDriver) getFile(path string, fields ...googleapi.Field) (*FileInfo, er
 
 func (d *GDriver) getFileOnRootNode(rootNode *FileInfo, path string, fields ...googleapi.Field) (*FileInfo, error) {
 	spl := strings.FieldsFunc(path, isPathSeperator)
+
 	return d.getFileByParts(rootNode, spl, fields...)
 }
 
@@ -595,23 +575,19 @@ func (d *GDriver) getFileByParts(rootNode *FileInfo, pathParts []string, fields 
 	lastPart := amountOfParts - 1
 	var lastFile *drive.File
 
-	for i := 0; i < amountOfParts; i++ {
-		query := fmt.Sprintf("'%s' in parents and name='%s' and trashed = false", lastID, sanitizeName(pathParts[i]))
-		// Logger.Println("query:" + query)
-		call := d.srv.Files.List().Q(query)
+	requestedFields := googleapi.Field(googleapi.CombineFields(fields))
 
-		// if we are not at the last part
+	for i := 0; i < amountOfParts; i++ {
+		fileName := pathParts[i]
+
+		var queryFields googleapi.Field
 		if i == lastPart {
-			if len(fields) == 0 {
-				call = call.Fields("files(id)")
-			} else {
-				call = call.Fields(fields...)
-			}
+			queryFields = requestedFields
 		} else {
-			call = call.Fields("files(id)")
+			queryFields = ""
 		}
 
-		files, err := call.Do()
+		files, err := d.srvWrapper.getFileByFolderAndName(lastID, fileName, queryFields)
 		if err != nil {
 			return nil, &DriveAPICallError{Err: err}
 		}
@@ -716,10 +692,33 @@ func (d *GDriver) openFileRead(file *FileInfo) (afero.File, error) {
 	}, nil
 }
 
+func (d *GDriver) wrapWriteCloser(dst io.WriteCloser) (io.WriteCloser, error) {
+	if d.WriteBufferSize == 0 {
+		return dst, nil
+	}
+
+	switch d.WriteBufferType {
+	case WriteBufferNone:
+		return dst, nil
+	case WriteBufferSimple:
+		return iohelper.NewBufferedWriteCloser(dst, d.WriteBufferSize), nil
+	case WriteBufferChan:
+		return iohelper.NewAsyncWriterChannel(dst, d.WriteBufferSize), nil
+	case WriteBufferAsync:
+		return iohelper.NewAsyncWriterBuffer(dst, d.WriteBufferSize), nil
+	default:
+		return nil, ErrUnknownBufferType
+	}
+}
+
 func (d *GDriver) openFileWrite(file *FileInfo, path string) (afero.File, error) {
 	writer, endErr, err := d.getFileWriter(file)
 	if err != nil {
 		return nil, err
+	}
+
+	if writerBuffer, err := d.wrapWriteCloser(writer); err != nil {
+		writer = writerBuffer
 	}
 
 	return &File{

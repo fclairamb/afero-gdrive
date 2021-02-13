@@ -19,13 +19,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fclairamb/afero-gdrive/log/gokit"
-	"github.com/fclairamb/afero-gdrive/oauthhelper"
 	"github.com/hjson/hjson-go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
+
+	"github.com/fclairamb/afero-gdrive/log/gokit"
+	"github.com/fclairamb/afero-gdrive/oauthhelper"
 )
 
 var (
@@ -37,12 +38,7 @@ func varInit() {
 	prefix = time.Now().UTC().Format("20060102_150405.000000")
 }
 
-func setup(t *testing.T) *GDriver {
-	initOnce.Do(varInit)
-
-	// All of our tests can run in parallel
-	t.Parallel()
-
+func loadEnvFromFile(t *testing.T) {
 	env, err := ioutil.ReadFile(".env.json")
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -63,6 +59,15 @@ func setup(t *testing.T) *GDriver {
 			}
 		}
 	}
+}
+
+func setup(t *testing.T) *GDriver {
+	initOnce.Do(varInit)
+
+	// All of our tests can run in parallel
+	t.Parallel()
+
+	loadEnvFromFile(t)
 
 	helper := oauthhelper.Auth{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
@@ -73,14 +78,19 @@ func setup(t *testing.T) *GDriver {
 	}
 	var client *http.Client
 	var driver *GDriver
-	var token []byte
+	var err error
 
-	token, err = base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_TOKEN"))
-	require.NoError(t, err)
+	{
+		envToken := os.Getenv("GOOGLE_TOKEN")
+		if envToken != "" {
+			var token []byte
+			token, err = base64.StdEncoding.DecodeString(envToken)
+			require.NoError(t, err)
 
-	helper.Token = new(oauth2.Token)
-
-	require.NoError(t, json.Unmarshal(token, helper.Token))
+			helper.Token = new(oauth2.Token)
+			require.NoError(t, json.Unmarshal(token, helper.Token))
+		}
+	}
 
 	client, err = helper.NewHTTPClient(context.Background())
 	require.NoError(t, err)
@@ -105,6 +115,32 @@ func setup(t *testing.T) *GDriver {
 	})
 
 	return driver
+}
+
+// This isn't an actual test, it's only to make sure tests left in a dirty state
+// are properly cleaned up at some point.
+func TestCleanupTests(t *testing.T) {
+	req := require.New(t)
+	driver := setup(t)
+
+	_, err := driver.SetRootDirectory("/")
+	req.NoError(err)
+
+	root, err := driver.Open("/")
+	req.NoError(err)
+
+	dirs, err := root.Readdir(100)
+	req.NoError(err)
+
+	old := time.Now().UTC().Add(-time.Hour)
+
+	for _, d := range dirs {
+		if d.ModTime().Before(old) {
+			err := driver.DeleteDirectory(d.Name())
+			t.Log("Deleting old file:", d.Name())
+			req.NoError(err)
+		}
+	}
 }
 
 func TestMakeDirectory(t *testing.T) {
@@ -188,6 +224,31 @@ func TestFileFolderMixup(t *testing.T) {
 
 	err := writeFile(driver, "Folder1/File1/File2", bytes.NewBufferString("Hello World"))
 	require.EqualError(t, err, "couldn't open file: file Folder1/File1 is not a directory")
+}
+
+func TestFileWriteBuffer(t *testing.T) {
+	driver := setup(t)
+	driver.WriteBufferSize = 1024 * 16
+
+	t.Run("without buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferNone
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
+
+	t.Run("with basic buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferSimple
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
+
+	t.Run("with async buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferAsync
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
+
+	t.Run("with async chan buffer", func(t *testing.T) {
+		driver.WriteBufferType = WriteBufferChan
+		mustWriteFileContent(t, driver, "File1", "Hello World")
+	})
 }
 
 func TestCreateFile(t *testing.T) {
@@ -316,7 +377,7 @@ func TestGetFile(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	t.Run("delete File", func(t *testing.T) {
+	t.Run("delete file", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
 		mustWriteFile(t, driver, "File1")
@@ -692,22 +753,45 @@ func TestOpen(t *testing.T) {
 			})
 		})
 		t.Run("existing big File", func(t *testing.T) {
-			driver := setup(t).AsAfero()
+			driver := setup(t)
 
 			var buf [4096*3 + 15]byte
 			_, err := rand.Read(buf[:])
 			require.NoError(t, err)
 
-			err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
-			require.NoError(t, err)
+			t.Run("no buffer", func(t *testing.T) {
+				var f afero.File
+				var data []byte
 
-			f, err := driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
-			require.NoError(t, err)
-			defer func() { require.NoError(t, f.Close()) }()
+				err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
+				require.NoError(t, err)
 
-			data, err := ioutil.ReadAll(f)
-			require.NoError(t, err)
-			require.EqualValues(t, buf[:], data)
+				f, err = driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
+				require.NoError(t, err)
+				defer func() { require.NoError(t, f.Close()) }()
+
+				data, err = ioutil.ReadAll(f)
+				require.NoError(t, err)
+				require.EqualValues(t, buf[:], data)
+			})
+
+			t.Run("with buffer", func(t *testing.T) {
+				var f afero.File
+				var data []byte
+
+				driver.WriteBufferSize = 1024 * 1024 // 1MB
+
+				err = writeFile(driver, "Folder1/File1", bytes.NewBuffer(buf[:]))
+				require.NoError(t, err)
+
+				f, err = driver.OpenFile("Folder1/File1", os.O_RDONLY, os.FileMode(0))
+				require.NoError(t, err)
+				defer func() { require.NoError(t, f.Close()) }()
+
+				data, err = ioutil.ReadAll(f)
+				require.NoError(t, err)
+				require.EqualValues(t, buf[:], data)
+			})
 		})
 		t.Run("non-existing File", func(t *testing.T) {
 			driver := setup(t).AsAfero()

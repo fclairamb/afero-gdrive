@@ -43,6 +43,8 @@ func main() {
 
   // Pass a token 
   token, _ := base64.StdEncoding.DecodeString(os.Getenv("GOOGLE_TOKEN"))
+  helper.Token = new(oauth2.Token)
+  json.Unmarshal(token, helper.Token)
 	
   // Initialize the authenticated client
   client, _ := helper.NewHTTPClient(context.Background())

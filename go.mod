@@ -8,6 +8,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/spf13/afero v1.5.1
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/mod v0.4.1 // indirect
 	golang.org/x/oauth2 v0.0.0-20210313182246-cd4f82c27b84
-	google.golang.org/api v0.41.0
+	google.golang.org/api v0.42.0
 )

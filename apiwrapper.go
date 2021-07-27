@@ -9,7 +9,7 @@ import (
 	"google.golang.org/api/googleapi"
 
 	"github.com/fclairamb/afero-gdrive/cache"
-	"github.com/fclairamb/afero-gdrive/log"
+	log "github.com/fclairamb/go-log"
 )
 
 // APIWrapper allows to wrap some GDrive API calls to perform some caching

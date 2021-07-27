@@ -18,7 +18,8 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/fclairamb/afero-gdrive/iohelper"
-	"github.com/fclairamb/afero-gdrive/log"
+	log "github.com/fclairamb/go-log"
+	logno "github.com/fclairamb/go-log/noop"
 )
 
 // WriteBufferType defines the type of buffer we want to use to read & write files
@@ -85,7 +86,7 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 	sharedInitOnce.Do(sharedInit)
 
 	driver := &GDriver{
-		Logger: log.Nothing(),
+		Logger: logno.NewNoOpLogger(),
 	}
 
 	var err error

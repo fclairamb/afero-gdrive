@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fclairamb/go-log/gokit"
 	"github.com/hjson/hjson-go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 
-	"github.com/fclairamb/afero-gdrive/log/gokit"
 	"github.com/fclairamb/afero-gdrive/oauthhelper"
 )
 

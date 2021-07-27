@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/fclairamb/go-log"
+	logno "github.com/fclairamb/go-log/noop"
 	"github.com/spf13/afero"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
 	"github.com/fclairamb/afero-gdrive/iohelper"
-	log "github.com/fclairamb/go-log"
-	logno "github.com/fclairamb/go-log/noop"
 )
 
 // WriteBufferType defines the type of buffer we want to use to read & write files

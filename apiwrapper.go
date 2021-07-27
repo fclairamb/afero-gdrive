@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	log "github.com/fclairamb/go-log"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 
 	"github.com/fclairamb/afero-gdrive/cache"
-	log "github.com/fclairamb/go-log"
 )
 
 // APIWrapper allows to wrap some GDrive API calls to perform some caching

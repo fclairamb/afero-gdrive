@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fclairamb/go-log/gokit"
 	"github.com/hjson/hjson-go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
 
-	"github.com/fclairamb/afero-gdrive/log/gokit"
 	"github.com/fclairamb/afero-gdrive/oauthhelper"
 )
 
@@ -102,7 +102,7 @@ func setup(t *testing.T) *GDriver {
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
 
-	err = driver.MkdirAll(fullPath, os.FileMode(700))
+	err = driver.MkdirAll(fullPath, os.FileMode(0700))
 	require.NoError(t, err)
 
 	_, err = driver.SetRootDirectory(fullPath)
@@ -147,7 +147,7 @@ func TestMakeDirectory(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
-		err := driver.MkdirAll("Folder1", os.FileMode(700))
+		err := driver.MkdirAll("Folder1", os.FileMode(0700))
 		require.NoError(t, err)
 
 		// Folder1 created?
@@ -159,9 +159,9 @@ func TestMakeDirectory(t *testing.T) {
 	t.Run("in existing directory", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
-		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(700)))
+		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(0700)))
 
-		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(700))
+		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(0700))
 		require.NoError(t, err)
 
 		// Folder1/Folder2 created?
@@ -719,7 +719,7 @@ func TestAferoSpecifics(t *testing.T) {
 	driver := setup(t).AsAfero()
 	t.Run("Chmod", func(t *testing.T) {
 		mustWriteFileContent(t, driver, "Chmod", "Chmod test")
-		require.NoError(t, driver.Chmod("Chmod", os.FileMode(755)))
+		require.NoError(t, driver.Chmod("Chmod", os.FileMode(0755)))
 	})
 	t.Run("Chtimes", func(t *testing.T) {
 		mustWriteFileContent(t, driver, "Chtimes", "Chtimes test")
@@ -873,7 +873,7 @@ func TestErrNotSupported(t *testing.T) {
 }
 
 func writeFile(driver afero.Fs, path string, content io.Reader) error {
-	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(777))
+	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(0777))
 	if err != nil {
 		return fmt.Errorf("couldn't open file: %w", err)
 	}

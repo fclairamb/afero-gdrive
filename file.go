@@ -172,6 +172,7 @@ func (f *File) Close() error {
 		if err != nil && !errors.Is(err, io.EOF) {
 			err = &DriveStreamError{Err: err}
 		}
+
 		return err
 	}
 

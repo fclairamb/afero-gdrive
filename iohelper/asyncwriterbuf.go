@@ -65,6 +65,7 @@ func (aw *AsyncWriterBuffer) Write(data []byte) (int, error) {
 		// If there's no space available, it means the buffer must be read first
 		if available == 0 {
 			aw.bufferRead.Wait()
+
 			continue
 		}
 

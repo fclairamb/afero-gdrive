@@ -59,6 +59,7 @@ func (e FileExistError) Error() string {
 // IsNotExist returns true if the error is an FileNotExistError
 func IsNotExist(e error) bool {
 	var fileNotExistError *FileNotExistError
+
 	return errors.As(e, &fileNotExistError)
 }
 

@@ -45,6 +45,7 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 // GetValue gets a value without specifying if it existed in the cache
 func (c *Cache) GetValue(key string) interface{} {
 	v, _ := c.Get(key)
+
 	return v
 }
 

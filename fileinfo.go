@@ -29,12 +29,14 @@ func (i *FileInfo) Mode() os.FileMode {
 // ModTime returns the modification time
 func (i *FileInfo) ModTime() time.Time {
 	modifiedTime, _ := time.Parse(time.RFC3339, i.file.ModifiedTime)
+
 	return modifiedTime
 }
 
 // CreateTime returns the time when this File was created
 func (i *FileInfo) CreateTime() time.Time {
 	t, _ := time.Parse(time.RFC3339, i.file.CreatedTime)
+
 	return t
 }
 

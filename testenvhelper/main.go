@@ -18,12 +18,14 @@ func main() {
 			var authCode string
 			fmt.Print("Your code:")
 			_, err := fmt.Scanln(&authCode)
+
 			return authCode, err
 		},
 	}
 
 	if h.ClientID == "" || h.ClientSecret == "" {
 		fmt.Println("You need to specify GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET")
+
 		return
 	}
 
@@ -31,11 +33,13 @@ func main() {
 
 	if err != nil {
 		fmt.Println("Error:", err)
+
 		return
 	}
 
 	if err := oauthhelper.StoreTokenToFile("token.json", h.Token); err != nil {
 		fmt.Println("Couldn't save file")
+
 		return
 	}
 

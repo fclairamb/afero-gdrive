@@ -82,6 +82,7 @@ func (aw *AsyncWriterChannel) run() {
 
 			if err != nil {
 				aw.writeErr <- err
+
 				return
 			}
 

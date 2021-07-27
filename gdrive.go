@@ -210,6 +210,7 @@ func (d *GDriver) Mkdir(path string, perm os.FileMode) error {
 // yet.
 func (d *GDriver) MkdirAll(path string, _ os.FileMode) error {
 	_, err := d.makeDirectoryByParts(strings.FieldsFunc(path, isPathSeperator))
+
 	return err
 }
 
@@ -328,7 +329,6 @@ func (d *GDriver) getFileReader(fi *FileInfo, offset int64) (io.ReadCloser, erro
 	}
 
 	// The resulting stream will be closed by the reader of the file
-	// nolint:bodyclose
 	response, err := request.Download()
 	if err != nil {
 		return nil, &DriveAPICallError{Err: err}
@@ -731,10 +731,12 @@ func (d *GDriver) openFileWrite(file *FileInfo, path string) (afero.File, error)
 	}, nil
 }
 
+const createFileMode = os.FileMode(0777)
+
 // Create creates a file in the filesystem, returning the file and an
 // error, if any happens.
 func (d *GDriver) Create(name string) (afero.File, error) {
-	file, err := d.OpenFile(name, os.O_CREATE, 0777)
+	file, err := d.OpenFile(name, os.O_CREATE, createFileMode)
 	if err != nil {
 		return nil, err
 	}

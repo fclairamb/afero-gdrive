@@ -28,6 +28,7 @@ func (w *TargetWriter) Close() error {
 
 func (w *TargetWriter) Write(p []byte) (int, error) {
 	log.Printf("target.Write: %x\n", p)
+
 	return w.Hash.Write(p)
 }
 
@@ -41,6 +42,7 @@ type EmptyWriter struct {
 
 func (w *EmptyWriter) Write(b []byte) (int, error) {
 	w.written += int64(len(b))
+
 	return len(b), nil
 }
 

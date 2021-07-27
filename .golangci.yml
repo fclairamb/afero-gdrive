@@ -137,7 +137,7 @@ linters-settings:
     max-blank-identifiers: 2
 
   whitespace:
-    multi-if: false   # Enforces newlines (or comments) after every multi-line if statement
+    multi-if: false # Enforces newlines (or comments) after every multi-line if statement
     multi-func: false # Enforces newlines (or comments) after every multi-line function signature
   wsl:
     # If true append is only allowed to be cuddled if appending value is
@@ -168,7 +168,7 @@ linters:
     # - exhaustivestruct
     - exportloopref
     - funlen
-    # - gci
+    - gci
     - gochecknoinits
     # - gochecknoglobals
     - gocognit
@@ -179,25 +179,26 @@ linters:
     - goerr113
     - gofmt
     - goimports
-    - golint
+    # - golint #deprecated
     - gomnd
     - goprintffuncname
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
+    # - interfacer #deprecated
     - lll
-    - maligned
+    # - maligned
     - megacheck
     - misspell
     - nakedret
     - nestif
-    # - nlreturn
+    - nlreturn
     - prealloc
     - nolintlint
+    - revive
     - rowserrcheck
-    - scopelint
+    # - scopelint #deprecated
     - staticcheck
     - structcheck
     - stylecheck

@@ -7,6 +7,7 @@ type Option func(driver *GDriver) error
 func RootDirectory(path string) Option {
 	return func(driver *GDriver) error {
 		_, err := driver.SetRootDirectory(path)
+
 		return err
 	}
 }

@@ -149,7 +149,7 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 
 // WriteString writes a string
 func (f *File) WriteString(s string) (ret int, err error) {
-	return io.WriteString(f, s) //nolint: gocritic
+	return io.WriteString(f, s) //nolint: gocritic // wants me to use f.WriteString and create an infinite loop
 }
 
 // Close closes the file

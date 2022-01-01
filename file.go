@@ -149,7 +149,7 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 
 // WriteString writes a string
 func (f *File) WriteString(s string) (ret int, err error) {
-	return f.Write([]byte(s))
+	return io.WriteString(f, s) //nolint: gocritic
 }
 
 // Close closes the file

@@ -23,9 +23,6 @@ var ErrReadOnly = errors.New("we're in a read-only mode")
 // ErrWriteOnly means a write operation was performed on a file opened in write-only
 var ErrWriteOnly = errors.New("we're in write-only mode")
 
-// ErrOpenMissingFlag is returned when neither read nor write flags are passed
-var ErrOpenMissingFlag = errors.New("you need to specify a read or write flag")
-
 // ErrUnknownBufferType is returned when a un unknown buffer is specified
 var ErrUnknownBufferType = errors.New("unknown buffer type")
 

@@ -22,9 +22,9 @@ jobs:
 
     strategy:
       matrix:
-        go: [ 1.16, 1.15, 1.14 ]
+        go: [ 1.17, 1.16, 1.15 ]
         include:
-          - go: 1.16
+          - go: 1.17
             lint: true
             test: true
   
@@ -38,7 +38,7 @@ jobs:
         if: matrix.lint
         uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.41
+          version: v1.43
 
       # Install Go
       - name: Setup go

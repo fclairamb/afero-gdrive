@@ -53,7 +53,7 @@ func loadEnvFromFile(t *testing.T) {
 
 		for key, val := range environmentVariables {
 			if s, ok := val.(string); ok {
-				require.NoError(t, os.Setenv(key, s))
+				require.NoError(t, os.Setenv(key, s), "os.Setenv(\"%s\", \"%s\")", key, s)
 			} else {
 				require.FailNow(t, "unable to set environment", "Key `%s' is not a string was a %T", key, val)
 			}
@@ -817,7 +817,7 @@ func TestOpen(t *testing.T) {
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY, os.FileMode(0))
 			require.NoError(t, err)
-			n, err := io.WriteString(f, "Hello Universe")
+			n, err := f.WriteString("Hello Universe")
 			require.NoError(t, err)
 			require.Equal(t, 14, n)
 			require.NoError(t, f.Close())
@@ -841,7 +841,7 @@ func TestOpen(t *testing.T) {
 
 			f, err := driver.OpenFile("Folder1/File1", os.O_WRONLY|os.O_CREATE, os.FileMode(0))
 			require.NoError(t, err)
-			n, err := io.WriteString(f, "Hello Universe")
+			n, err := f.WriteString("Hello Universe")
 			require.NoError(t, err)
 			require.Equal(t, 14, n)
 			require.NoError(t, f.Close())

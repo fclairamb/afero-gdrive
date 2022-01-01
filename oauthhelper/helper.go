@@ -81,14 +81,14 @@ func LoadTokenFromFile(file string) (*oauth2.Token, error) {
 		return nil, fmt.Errorf("couldn't open token file: %w", err)
 	}
 
-	defer func() { _ = f.Close() }()
-
 	var token oauth2.Token
-	if err = json.NewDecoder(f).Decode(&token); err != nil {
-		return nil, fmt.Errorf("unable to decode token: %w", err)
+	err = json.NewDecoder(f).Decode(&token)
+
+	if errClose := f.Close(); errClose != nil {
+		return nil, fmt.Errorf("couldn't close token file: %w", errClose)
 	}
 
-	return &token, nil
+	return &token, err
 }
 
 // StoreTokenToFile stores an OAuth2 token to a JSON file
@@ -98,13 +98,13 @@ func StoreTokenToFile(file string, token *oauth2.Token) error {
 		return fmt.Errorf("couldn't open token file: %w", err)
 	}
 
-	defer func() { _ = f.Close() }()
+	err = json.NewEncoder(f).Encode(token)
 
-	if err = json.NewEncoder(f).Encode(token); err != nil {
-		return fmt.Errorf("unable to encode token: %w", err)
+	if errClose := f.Close(); errClose != nil {
+		return fmt.Errorf("couldn't close token file: %w", errClose)
 	}
 
-	return nil
+	return err
 }
 
 // GetTokenBase64 returns the Base64 representation of JSON token

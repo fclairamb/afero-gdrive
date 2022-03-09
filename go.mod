@@ -7,7 +7,7 @@ require (
 	github.com/hjson/hjson-go v3.1.0+incompatible
 	github.com/spf13/afero v1.8.1
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
+	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a
 	google.golang.org/api v0.71.0
 )
 

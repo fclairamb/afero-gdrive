@@ -1,6 +1,6 @@
 module github.com/fclairamb/afero-gdrive
 
-go 1.17
+go 1.18
 
 require (
 	github.com/fclairamb/go-log v0.3.0
@@ -12,7 +12,6 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/compute v1.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-kit/log v0.2.0 // indirect

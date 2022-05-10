@@ -1,6 +1,6 @@
 module github.com/fclairamb/afero-gdrive
 
-go 1.17
+go 1.18
 
 require (
 	github.com/fclairamb/go-log v0.3.0

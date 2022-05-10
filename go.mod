@@ -3,7 +3,7 @@ module github.com/fclairamb/afero-gdrive
 go 1.17
 
 require (
-	github.com/fclairamb/go-log v0.2.0
+	github.com/fclairamb/go-log v0.3.0
 	github.com/hjson/hjson-go v3.1.0+incompatible
 	github.com/spf13/afero v1.8.2
 	github.com/stretchr/testify v1.7.1
@@ -14,7 +14,7 @@ require (
 require (
 	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/compute v1.5.0 // indirect
-	github.com/davecgh/go-spew v1.1.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
@@ -29,5 +29,5 @@ require (
 	google.golang.org/genproto v0.0.0-20220324131243-acbaeb5b85eb // indirect
 	google.golang.org/grpc v1.45.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )

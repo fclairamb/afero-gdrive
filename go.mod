@@ -6,7 +6,7 @@ require (
 	github.com/fclairamb/go-log v0.3.0
 	github.com/hjson/hjson-go v3.1.0+incompatible
 	github.com/spf13/afero v1.8.2
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	golang.org/x/oauth2 v0.0.0-20220628200809-02e64fa58f26
 	google.golang.org/api v0.86.0
 )

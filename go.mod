@@ -3,7 +3,7 @@ module github.com/fclairamb/afero-gdrive
 go 1.19
 
 require (
-	github.com/fclairamb/go-log v0.4.0
+	github.com/fclairamb/go-log v0.4.1
 	github.com/hjson/hjson-go v3.1.0+incompatible
 	github.com/spf13/afero v1.9.2
 	github.com/stretchr/testify v1.8.0

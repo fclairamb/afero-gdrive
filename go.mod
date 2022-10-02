@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/fclairamb/go-log v0.4.1
-	github.com/hjson/hjson-go v3.1.0+incompatible
+	github.com/hjson/hjson-go v3.3.0+incompatible
 	github.com/spf13/afero v1.9.2
 	github.com/stretchr/testify v1.8.0
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1

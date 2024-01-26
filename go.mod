@@ -8,7 +8,7 @@ require (
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/oauth2 v0.16.0
-	google.golang.org/api v0.158.0
+	google.golang.org/api v0.159.0
 )
 
 require (

@@ -117,6 +117,8 @@ github.com/fclairamb/go-log v0.4.0 h1:HLm0yU9IzNCqayuTqtLyWUy/Bjud7+DZWTSg0lAC5p
 github.com/fclairamb/go-log v0.4.0/go.mod h1:sw1KvnkZ4wKCYkvy4SL3qVZcJSWFP8Ure4pM3z+KNn4=
 github.com/fclairamb/go-log v0.4.1 h1:rLtdSG9x2pK41AIAnE8WYpl05xBJfw1ZyYxZaXFcBsM=
 github.com/fclairamb/go-log v0.4.1/go.mod h1:sw1KvnkZ4wKCYkvy4SL3qVZcJSWFP8Ure4pM3z+KNn4=
+github.com/fclairamb/go-log v0.5.0 h1:Gz9wSamEaA6lta4IU2cjJc2xSq5sV5VYSB5w/SUHhVc=
+github.com/fclairamb/go-log v0.5.0/go.mod h1:XoRO1dYezpsGmLLkZE9I+sHqpqY65p8JA+Vqblb7k40=
 github.com/felixge/httpsnoop v1.0.4 h1:NFTV2Zj1bL4mc9sqWACXbQFVBBg2W3GPvqp8/ESS2Wg=
 github.com/felixge/httpsnoop v1.0.4/go.mod h1:m8KPJKqk1gH5J9DgRY2ASl2lWCfGKXixSwevea8zH2U=
 github.com/ghodss/yaml v1.0.0/go.mod h1:4dBDuWmgqj2HViK6kFavaiC9ZROes6MMH2rRYeMEF04=

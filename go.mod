@@ -1,9 +1,11 @@
 module github.com/fclairamb/afero-gdrive
 
-go 1.19
+go 1.21
+
+toolchain go1.22.1
 
 require (
-	github.com/fclairamb/go-log v0.4.1
+	github.com/fclairamb/go-log v0.5.0
 	github.com/hjson/hjson-go v3.3.0+incompatible
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0

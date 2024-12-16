@@ -94,7 +94,7 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 		return nil, err
 	}
 
-	names := make([]string, len(dirs))
+	names := make([]string, 0, len(dirs))
 	for _, d := range dirs {
 		names = append(names, d.Name())
 	}

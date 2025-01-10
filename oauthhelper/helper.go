@@ -26,6 +26,7 @@ type Auth struct {
 	ClientID     string
 	ClientSecret string
 	Authenticate AuthenticateFunc
+	TokenFile    string
 }
 
 // NewHTTPClient instantiates a new authentication client
@@ -55,7 +56,19 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Cl
 		}
 	}
 
-	return config.Client(ctx, auth.Token), nil
+	ts := config.TokenSource(ctx, auth.Token)
+	newToken, err := ts.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	auth.Token = newToken
+	err = StoreTokenToFile(auth.TokenFile, auth.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	return oauth2.NewClient(ctx, ts), nil
 }
 
 func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {

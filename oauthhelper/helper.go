@@ -37,7 +37,7 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Cl
 
 	config := &oauth2.Config{
 		Scopes:      scopes,
-		RedirectURL: "urn:ietf:wg:oauth:2.0:oob",
+		RedirectURL: "https://localhost",
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://accounts.google.com/o/oauth2/auth",
 			TokenURL: "https://accounts.google.com/o/oauth2/token",

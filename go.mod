@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/fclairamb/go-log v0.5.0
 	github.com/hjson/hjson-go v3.3.0+incompatible
-	github.com/spf13/afero v1.12.0
+	github.com/spf13/afero v1.13.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/oauth2 v0.28.0
 	google.golang.org/api v0.226.0
@@ -16,7 +16,7 @@ require (
 require (
 	cloud.google.com/go/auth v0.15.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
-	cloud.google.com/go/compute v1.29.0 // indirect
+	cloud.google.com/go/compute v1.34.0 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -42,7 +42,7 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
+	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/grpc v1.71.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect

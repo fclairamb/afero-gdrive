@@ -88,13 +88,13 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 
 // Readdirnames provides a list of directory names
 func (f *File) Readdirnames(n int) ([]string, error) {
-	names := make([]string, n, 0)
 
 	dirs, err := f.Readdir(n)
 	if err != nil {
 		return nil, err
 	}
 
+	names := make([]string, 0, len(dirs))
 	for _, d := range dirs {
 		names = append(names, d.Name())
 	}

@@ -2,7 +2,7 @@ module github.com/fclairamb/afero-gdrive
 
 go 1.24.0
 
-toolchain go1.25.4
+toolchain go1.25.5
 
 require (
 	github.com/fclairamb/go-log v0.6.0

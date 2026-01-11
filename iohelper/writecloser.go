@@ -25,7 +25,7 @@ func NewBufferedWriteCloser(dst io.WriteCloser, size int) *BufferedWriteCloser {
 
 // Close will close the underlying stream
 func (wc *BufferedWriteCloser) Close() error {
-	if err := wc.Writer.Flush(); err != nil {
+	if err := wc.Flush(); err != nil {
 		return fmt.Errorf("couldn't flush underlying stream: %w", err)
 	}
 

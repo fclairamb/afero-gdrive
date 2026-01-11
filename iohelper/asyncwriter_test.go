@@ -33,7 +33,7 @@ func (w *TargetWriter) Write(p []byte) (int, error) {
 }
 
 func (w *TargetWriter) String() string {
-	return hex.EncodeToString(w.Hash.Sum(nil))
+	return hex.EncodeToString(w.Sum(nil))
 }
 
 type EmptyWriter struct {

@@ -1,4 +1,3 @@
-// nolint: funlen
 package gdrive
 
 import (
@@ -9,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -39,7 +37,7 @@ func varInit() {
 }
 
 func loadEnvFromFile(t *testing.T) {
-	env, err := ioutil.ReadFile(".env.json")
+	env, err := os.ReadFile(".env.json")
 	if err != nil {
 		if !os.IsNotExist(err) {
 			require.NoError(t, err)
@@ -72,7 +70,7 @@ func setup(t *testing.T) *GDriver {
 	helper := oauthhelper.Auth{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		Authenticate: func(url string) (string, error) {
+		Authenticate: func(_ string) (string, error) {
 			return "", ErrNotSupported
 		},
 	}
@@ -102,7 +100,7 @@ func setup(t *testing.T) *GDriver {
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
 
-	err = driver.MkdirAll(fullPath, os.FileMode(0700))
+	err = driver.MkdirAll(fullPath, os.FileMode(0o700))
 	require.NoError(t, err)
 
 	_, err = driver.SetRootDirectory(fullPath)
@@ -147,7 +145,7 @@ func TestMakeDirectory(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
-		err := driver.MkdirAll("Folder1", os.FileMode(0700))
+		err := driver.MkdirAll("Folder1", os.FileMode(0o700))
 		require.NoError(t, err)
 
 		// Folder1 created?
@@ -159,9 +157,9 @@ func TestMakeDirectory(t *testing.T) {
 	t.Run("in existing directory", func(t *testing.T) {
 		driver := setup(t).AsAfero()
 
-		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(0700)))
+		require.NoError(t, driver.MkdirAll("Folder1", os.FileMode(0o700)))
 
-		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(0700))
+		err := driver.MkdirAll("Folder1/Folder2", os.FileMode(0o700))
 		require.NoError(t, err)
 
 		// Folder1/Folder2 created?
@@ -270,7 +268,7 @@ func TestCreateFile(t *testing.T) {
 		// Compare File contents
 		r, err := driver.Open("File1")
 		require.NoError(t, err)
-		received, err := ioutil.ReadAll(r)
+		received, err := io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, "Hello World", string(received))
 	})
@@ -292,7 +290,7 @@ func TestCreateFile(t *testing.T) {
 		// Compare File contents
 		r, err := driver.Open("Folder1/File1")
 		require.NoError(t, err)
-		received, err := ioutil.ReadAll(r)
+		received, err := io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, "Hello World", string(received))
 	})
@@ -333,7 +331,7 @@ func TestCreateFile(t *testing.T) {
 		r, err := driver.Open("File1")
 		require.NoError(t, err)
 		defer func() { require.NoError(t, r.Close()) }()
-		received, err := ioutil.ReadAll(r)
+		received, err := io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, "Hello World", string(received))
 
@@ -349,7 +347,7 @@ func TestCreateFile(t *testing.T) {
 		r, err = driver.Open("File1")
 		defer func() { require.NoError(t, r.Close()) }()
 		require.NoError(t, err)
-		received, err = ioutil.ReadAll(r)
+		received, err = io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, "Hello Universe", string(received))
 	})
@@ -363,7 +361,7 @@ func TestGetFile(t *testing.T) {
 	// Compare File content
 	fi, err := driver.Open("Folder1/File1")
 	require.NoError(t, err)
-	received, err := ioutil.ReadAll(fi)
+	received, err := io.ReadAll(fi)
 	require.NoError(t, err)
 	require.Equal(t, "Hello World", string(received))
 	require.Equal(t, "File1", fi.Name())
@@ -483,7 +481,7 @@ func TestListDirectory(t *testing.T) {
 			files, err := dir.Readdir(2000)
 			require.NoError(t, err)
 
-			require.Len(t, files, 0)
+			require.Empty(t, files)
 		}
 	})
 
@@ -719,7 +717,7 @@ func TestAferoSpecifics(t *testing.T) {
 	driver := setup(t).AsAfero()
 	t.Run("Chmod", func(t *testing.T) {
 		mustWriteFileContent(t, driver, "Chmod", "Chmod test")
-		require.NoError(t, driver.Chmod("Chmod", os.FileMode(0755)))
+		require.NoError(t, driver.Chmod("Chmod", os.FileMode(0o755)))
 	})
 	t.Run("Chtimes", func(t *testing.T) {
 		mustWriteFileContent(t, driver, "Chtimes", "Chtimes test")
@@ -740,14 +738,14 @@ func TestOpen(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { require.NoError(t, f.Close()) }()
 
-			data, err := ioutil.ReadAll(f)
+			data, err := io.ReadAll(f)
 			require.NoError(t, err)
 			require.Equal(t, "Hello World", string(data))
 
 			t.Run("Partial read", func(t *testing.T) {
 				_, err := f.Seek(6, io.SeekStart)
 				require.NoError(t, err)
-				data, err = ioutil.ReadAll(f)
+				data, err = io.ReadAll(f)
 				require.NoError(t, err)
 				require.Equal(t, "World", string(data))
 			})
@@ -770,9 +768,9 @@ func TestOpen(t *testing.T) {
 				require.NoError(t, err)
 				defer func() { require.NoError(t, f.Close()) }()
 
-				data, err = ioutil.ReadAll(f)
+				data, err = io.ReadAll(f)
 				require.NoError(t, err)
-				require.EqualValues(t, buf[:], data)
+				require.Equal(t, buf[:], data)
 			})
 
 			t.Run("with buffer", func(t *testing.T) {
@@ -788,9 +786,9 @@ func TestOpen(t *testing.T) {
 				require.NoError(t, err)
 				defer func() { require.NoError(t, f.Close()) }()
 
-				data, err = ioutil.ReadAll(f)
+				data, err = io.ReadAll(f)
 				require.NoError(t, err)
-				require.EqualValues(t, buf[:], data)
+				require.Equal(t, buf[:], data)
 			})
 		})
 		t.Run("non-existing File", func(t *testing.T) {
@@ -825,7 +823,7 @@ func TestOpen(t *testing.T) {
 			// Compare File contents
 			r, err := driver.Open("Folder1/File1")
 			require.NoError(t, err)
-			received, err := ioutil.ReadAll(r)
+			received, err := io.ReadAll(r)
 			require.NoError(t, err)
 			require.Equal(t, "Hello Universe", string(received))
 		})
@@ -849,7 +847,7 @@ func TestOpen(t *testing.T) {
 			// Compare File contents
 			r, err := driver.Open("Folder1/File1")
 			require.NoError(t, err)
-			received, err := ioutil.ReadAll(r)
+			received, err := io.ReadAll(r)
 			require.NoError(t, err)
 			require.Equal(t, "Hello Universe", string(received))
 		})
@@ -873,7 +871,7 @@ func TestErrNotSupported(t *testing.T) {
 }
 
 func writeFile(driver afero.Fs, path string, content io.Reader) error {
-	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(0777))
+	f, err := driver.OpenFile(path, os.O_WRONLY|os.O_CREATE, os.FileMode(0o777))
 	if err != nil {
 		return fmt.Errorf("couldn't open file: %w", err)
 	}

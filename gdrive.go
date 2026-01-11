@@ -152,7 +152,7 @@ func (d *GDriver) Stat(path string) (os.FileInfo, error) {
 const filesListPageSizeMax = 1000
 
 func (d *GDriver) listDirectory(f *File, count int) ([]os.FileInfo, error) {
-	if !f.FileInfo.IsDir() {
+	if !f.IsDir() {
 		return nil, FileIsNotDirectoryError{Fi: f.FileInfo}
 	}
 
@@ -466,7 +466,6 @@ func (d *GDriver) Rename(oldPath, newPath string) error {
 		AddParents(parentNode.file.Id).
 		RemoveParents(path.Join(file.file.Parents...)).
 		Fields(fileInfoFields...).Do()
-
 	if err != nil {
 		return &DriveAPICallError{Err: err}
 	}
@@ -731,7 +730,7 @@ func (d *GDriver) openFileWrite(file *FileInfo, path string) (afero.File, error)
 	}, nil
 }
 
-const createFileMode = os.FileMode(0777)
+const createFileMode = os.FileMode(0o777)
 
 // Create creates a file in the filesystem, returning the file and an
 // error, if any happens.
@@ -760,7 +759,6 @@ func (d *GDriver) Chmod(path string, mode os.FileMode) error {
 			"ftp_file_mode": fmt.Sprintf("%d", mode),
 		},
 	}).Do()
-
 	if err != nil {
 		return &DriveAPICallError{Err: err}
 	}
@@ -780,7 +778,6 @@ func (d *GDriver) Chtimes(path string, atime time.Time, mTime time.Time) error {
 		ModifiedTime:   mTime.Format(time.RFC3339),
 		// ModifiedByMeTime: mTime.Format(time.RFC3339),
 	}).Do()
-
 	if err != nil {
 		return &DriveAPICallError{Err: err}
 	}

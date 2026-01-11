@@ -18,12 +18,12 @@ func TestBasics(t *testing.T) {
 	assert.Equal("value1", v)
 	assert.True(ok)
 
-	assert.Nil(nil, c.GetValue("key4"))
+	assert.Nil(c.GetValue("key4"))
 
 	c.Delete("key1")
 
 	v, ok = c.Get("key1")
-	assert.Equal(nil, v)
+	assert.Nil(v)
 	assert.False(ok)
 
 	assert.Equal("value2", c.GetValue("key2"))

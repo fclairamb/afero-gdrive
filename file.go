@@ -1,4 +1,4 @@
-package gdrive // nolint: golint
+package gdrive
 
 import (
 	"errors"
@@ -52,7 +52,7 @@ func (f *File) seekRead(offset int64, whence int) (int64, error) {
 	case io.SeekCurrent:
 		startByte = f.streamOffset + offset
 	case io.SeekEnd:
-		startByte = f.FileInfo.Size() - offset
+		startByte = f.Size() - offset
 	}
 
 	if err := f.streamRead.Close(); err != nil {
@@ -149,7 +149,7 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 
 // WriteString writes a string
 func (f *File) WriteString(s string) (ret int, err error) {
-	return f.Write([]byte(s)) //nolint
+	return f.Write([]byte(s))
 }
 
 // Close closes the file

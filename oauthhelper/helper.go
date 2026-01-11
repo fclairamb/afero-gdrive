@@ -49,7 +49,7 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Cl
 	if auth.Token == nil {
 		var err error
 
-		auth.Token, err = auth.getTokenFromWeb(config)
+		auth.Token, err = auth.getTokenFromWeb(ctx, config)
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +58,7 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Cl
 	return config.Client(ctx, auth.Token), nil
 }
 
-func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
+func (auth *Auth) getTokenFromWeb(ctx context.Context, config *oauth2.Config) (*oauth2.Token, error) {
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 
 	code, err := auth.Authenticate(authURL)
@@ -66,7 +66,7 @@ func (auth *Auth) getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) 
 		return nil, fmt.Errorf("authenticate error: %w", err)
 	}
 
-	tok, err := config.Exchange(context.Background(), code)
+	tok, err := config.Exchange(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve token from web: %w", err)
 	}

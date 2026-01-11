@@ -1,4 +1,4 @@
-package gdrive // nolint: golint
+package gdrive
 
 import (
 	"os"

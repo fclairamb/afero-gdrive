@@ -1,4 +1,4 @@
-package gdrive // nolint: golint
+package gdrive
 
 import (
 	"bytes"
@@ -84,7 +84,7 @@ func (a *APIWrapper) createFile(
 	return file, err
 }
 
-// nolint: unused
+//nolint:unused
 func (a *APIWrapper) renameFile(file *drive.File, targetFolder *drive.File, targetName string) error {
 	a.calling("Files.Update")
 
@@ -102,7 +102,6 @@ func (a *APIWrapper) renameFile(file *drive.File, targetFolder *drive.File, targ
 	}
 
 	_, err := call.Do()
-
 	if err != nil {
 		return &DriveAPICallError{Err: err}
 	}
@@ -156,7 +155,9 @@ func (a *APIWrapper) getFileByFolderAndName(
 	value, ok := a.cache.Get(cacheKey)
 
 	if ok {
-		return value.(*drive.FileList), nil
+		fileList, _ := value.(*drive.FileList)
+
+		return fileList, nil
 	}
 
 	fileList, err := a._getFileByFolderAndName(folderID, fileName, googleapi.Field(queryFields))

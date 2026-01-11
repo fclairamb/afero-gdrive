@@ -30,7 +30,6 @@ func main() {
 	}
 
 	_, err := h.NewHTTPClient(context.Background())
-
 	if err != nil {
 		fmt.Println("Error:", err)
 

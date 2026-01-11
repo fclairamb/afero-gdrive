@@ -1,4 +1,4 @@
-package iohelper // nolint: golint
+package iohelper
 
 import (
 	"io"
@@ -79,7 +79,6 @@ func (aw *AsyncWriterChannel) run() {
 
 		for {
 			n, err = aw.dstWriter.Write(buf)
-
 			if err != nil {
 				aw.writeErr <- err
 

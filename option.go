@@ -1,4 +1,4 @@
-package gdrive // nolint: golint
+package gdrive
 
 // Option can be used to pass optional Options to GDriver
 type Option func(driver *GDriver) error

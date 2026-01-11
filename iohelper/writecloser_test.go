@@ -2,7 +2,6 @@ package iohelper
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -20,7 +19,7 @@ func (f *bogusFile) Write(_ []byte) (n int, err error) {
 }
 
 func TestWriteCloser(t *testing.T) {
-	file, err := ioutil.TempFile("", "")
+	file, err := os.CreateTemp("", "")
 	if err != nil {
 		t.Fatal(err)
 	}

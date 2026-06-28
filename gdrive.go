@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -14,8 +15,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/fclairamb/go-log"
-	logno "github.com/fclairamb/go-log/noop"
 	"github.com/spf13/afero"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
@@ -42,7 +41,7 @@ const (
 type GDriver struct {
 	srv                 *drive.Service
 	rootNode            *FileInfo
-	Logger              log.Logger
+	Logger              *slog.Logger
 	LogReaderAndWriters bool
 	TrashForDelete      bool
 	WriteBufferType     WriteBufferType
@@ -88,7 +87,7 @@ func New(client *http.Client, opts ...Option) (*GDriver, error) {
 	sharedInitOnce.Do(sharedInit)
 
 	driver := &GDriver{
-		Logger: logno.NewNoOpLogger(),
+		Logger: slog.New(slog.DiscardHandler),
 	}
 
 	var err error

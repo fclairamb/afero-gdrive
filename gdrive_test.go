@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"sort"
 	"strings"
@@ -16,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fclairamb/go-log/gokit"
 	"github.com/hjson/hjson-go"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
@@ -101,7 +101,7 @@ func setup(t *testing.T) *GDriver {
 		t.Skipf("Skipping integration test: couldn't connect to Google Drive: %v", err)
 	}
 
-	driver.Logger = gokit.New()
+	driver.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
 

@@ -3,9 +3,9 @@ package gdrive
 import (
 	"bytes"
 	"fmt"
+	"log/slog"
 	"sync/atomic"
 
-	log "github.com/fclairamb/go-log"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
 
@@ -17,12 +17,12 @@ type APIWrapper struct {
 	UseCache bool
 	srv      *drive.Service
 	cache    *cache.Cache
-	logger   log.Logger
+	logger   *slog.Logger
 	calls    map[string]*int32
 }
 
 // NewAPIWrapper instantiates a new APIWrapper
-func NewAPIWrapper(srv *drive.Service, logger log.Logger) *APIWrapper {
+func NewAPIWrapper(srv *drive.Service, logger *slog.Logger) *APIWrapper {
 	return &APIWrapper{
 		srv:    srv,
 		cache:  cache.NewCache(),

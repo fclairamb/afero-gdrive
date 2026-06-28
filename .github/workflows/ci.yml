@@ -14,15 +14,15 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
-      - uses: actions/setup-go@v6.1.0
+      - uses: actions/setup-go@v6.5.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - uses: golangci/golangci-lint-action@v9.2.1
         with:
-          version: v2.8
+          version: v2.12.2
 
   test:
     runs-on: ubuntu-24.04
@@ -32,11 +32,11 @@ jobs:
         ports:
           - 9000:9000
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
-      - uses: actions/setup-go@v6.1.0
+      - uses: actions/setup-go@v6.5.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Run tests
         env:
@@ -46,7 +46,7 @@ jobs:
         run: go test -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v5.5.2
+        uses: codecov/codecov-action@v7.0.0
         with:
           files: coverage.out
         continue-on-error: true
@@ -54,11 +54,11 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.0
 
-      - uses: actions/setup-go@v6.1.0
+      - uses: actions/setup-go@v6.5.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Build
         run: go build -v ./...

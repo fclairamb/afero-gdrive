@@ -13,14 +13,6 @@ func main() {
 	h := oauthhelper.Auth{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		Authenticate: func(url string) (string, error) {
-			fmt.Println("Go to", url)
-			var authCode string
-			fmt.Print("Your code:")
-			_, err := fmt.Scanln(&authCode)
-
-			return authCode, err
-		},
 	}
 
 	if h.ClientID == "" || h.ClientSecret == "" {
@@ -29,8 +21,9 @@ func main() {
 		return
 	}
 
-	_, err := h.NewHTTPClient(context.Background())
-	if err != nil {
+	// With no Authenticate callback set, NewHTTPClient runs the loopback flow: it
+	// prints an authorization URL, then captures the code on a local web server.
+	if _, err := h.NewHTTPClient(context.Background()); err != nil {
 		fmt.Println("Error:", err)
 
 		return

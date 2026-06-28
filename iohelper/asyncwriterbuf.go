@@ -1,4 +1,4 @@
-package iohelper // nolint: golint
+package iohelper
 
 import (
 	"bytes"

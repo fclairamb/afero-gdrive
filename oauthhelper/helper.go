@@ -60,6 +60,10 @@ type Auth struct {
 	// user (for example by opening a browser). When nil the URL is printed to the
 	// standard output. It is only used by the default loopback flow.
 	OpenURL func(url string) error
+	// TokenFile, when set, is the path where the token is (re)stored after each
+	// successful authentication. The token is refreshed eagerly so that rotated
+	// refresh tokens are persisted and reused across runs.
+	TokenFile string
 }
 
 // codeResult carries the outcome of the loopback authorization callback.
@@ -92,6 +96,25 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Cl
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// When a TokenFile is configured, eagerly refresh the token and persist it so a
+	// rotated refresh token isn't lost between runs.
+	if auth.TokenFile != "" {
+		source := config.TokenSource(ctx, auth.Token)
+
+		token, err := source.Token()
+		if err != nil {
+			return nil, fmt.Errorf("couldn't refresh token: %w", err)
+		}
+
+		auth.Token = token
+
+		if err := StoreTokenToFile(auth.TokenFile, auth.Token); err != nil {
+			return nil, fmt.Errorf("couldn't store token: %w", err)
+		}
+
+		return oauth2.NewClient(ctx, source), nil
 	}
 
 	return config.Client(ctx, auth.Token), nil

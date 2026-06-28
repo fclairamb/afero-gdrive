@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -415,7 +417,13 @@ func (d *GDriver) createFile(filePath string) (*FileInfo, error) {
 		}
 	}
 
-	file, err := d.srvWrapper.createFile(parentNode.file.Id, pathParts[amountOfParts-1], mimeTypeFile, fileInfoFields...)
+	ext := filepath.Ext(pathParts[amountOfParts-1])
+	mimeType := mime.TypeByExtension(ext)
+	if mimeType == "" {
+		mimeType = mimeTypeFile
+	}
+
+	file, err := d.srvWrapper.createFile(parentNode.file.Id, pathParts[amountOfParts-1], mimeType, fileInfoFields...)
 	if err != nil {
 		return nil, &DriveAPICallError{Err: err}
 	}

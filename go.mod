@@ -2,7 +2,7 @@ module github.com/fclairamb/afero-gdrive
 
 go 1.25.8
 
-toolchain go1.26.4
+toolchain go1.26.5
 
 require (
 	github.com/hjson/hjson-go v3.3.0+incompatible

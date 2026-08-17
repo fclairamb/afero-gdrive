@@ -7,7 +7,7 @@ toolchain go1.26.6
 require (
 	github.com/hjson/hjson-go v3.3.0+incompatible
 	github.com/spf13/afero v1.15.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.293.0
 )

@@ -358,6 +358,61 @@ func TestCreateFile(t *testing.T) {
 	})
 }
 
+// TestUploadUpdateDelete exercises the full real-world lifecycle of a File on
+// Google Drive: uploading it (with MIME type detection from its extension),
+// updating its content in place (same Drive File, not a new one), and finally
+// deleting it.
+func TestUploadUpdateDelete(t *testing.T) {
+	driver := setup(t)
+	fs := driver.AsAfero()
+
+	// Upload: create a new File with an extension so the MIME type can be detected.
+	mustWriteFileContent(t, fs, "Folder1/File1.txt", "Hello World")
+
+	fi, err := driver.Stat("Folder1/File1.txt")
+	require.NoError(t, err)
+	require.Equal(t, "File1.txt", fi.Name())
+
+	driveInfo, ok := fi.(*FileInfo)
+	require.True(t, ok)
+	// The extension is detected as "text/plain; charset=utf-8" and uploaded as such,
+	// but Google Drive stores it normalized to "text/plain". Assert on the prefix so
+	// the test proves detection happened (not the octet-stream fallback) without being
+	// brittle about whether Drive keeps the charset parameter.
+	require.True(t, strings.HasPrefix(driveInfo.DriveFile().MimeType, "text/plain"),
+		"expected a text/plain MIME type from extension detection, got %q", driveInfo.DriveFile().MimeType)
+
+	originalID := driveInfo.DriveFile().Id
+
+	r, err := fs.Open("Folder1/File1.txt")
+	require.NoError(t, err)
+	received, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+	require.Equal(t, "Hello World", string(received))
+
+	// Update: overwrite the content of the same File.
+	mustWriteFileContent(t, fs, "Folder1/File1.txt", "Hello Universe")
+
+	fi, err = driver.Stat("Folder1/File1.txt")
+	require.NoError(t, err)
+
+	driveInfo, ok = fi.(*FileInfo)
+	require.True(t, ok)
+	require.Equal(t, originalID, driveInfo.DriveFile().Id, "update should reuse the same Drive File, not create a new one")
+
+	r, err = fs.Open("Folder1/File1.txt")
+	require.NoError(t, err)
+	received, err = io.ReadAll(r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+	require.Equal(t, "Hello Universe", string(received))
+
+	// Delete: remove the File.
+	require.NoError(t, fs.Remove("Folder1/File1.txt"))
+	require.EqualError(t, getError(fs.Stat("Folder1/File1.txt")), "`Folder1/File1.txt' does not exist")
+}
+
 func TestGetFile(t *testing.T) {
 	driver := setup(t).AsAfero()
 

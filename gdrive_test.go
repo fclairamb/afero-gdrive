@@ -31,6 +31,12 @@ var (
 	initOnce sync.Once
 )
 
+// testDirPrefix is the name prefix of every scratch directory the integration
+// tests create (see setup). TestCleanupTests only ever removes directories
+// carrying this prefix, so it can never delete real data on the account the
+// tests are authenticated against.
+const testDirPrefix = "GDriveTest-"
+
 func varInit() {
 	prefix = time.Now().UTC().Format("20060102_150405.000000")
 }
@@ -103,7 +109,7 @@ func setup(t *testing.T) *GDriver {
 
 	driver.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	fullPath := sanitizeName(fmt.Sprintf("GDriveTest-%s-%s", t.Name(), prefix))
+	fullPath := sanitizeName(fmt.Sprintf("%s%s-%s", testDirPrefix, t.Name(), prefix))
 
 	err = driver.MkdirAll(fullPath, os.FileMode(0o700))
 	require.NoError(t, err)
@@ -132,16 +138,24 @@ func TestCleanupTests(t *testing.T) {
 	root, err := driver.Open("/")
 	req.NoError(err)
 
-	dirs, err := root.Readdir(100)
+	entries, err := root.Readdir(100)
 	req.NoError(err)
 
 	old := time.Now().UTC().Add(-time.Hour)
 
-	for _, d := range dirs {
-		if d.ModTime().Before(old) {
-			err := driver.DeleteDirectory(d.Name())
-			t.Log("Deleting old file:", d.Name())
-			req.NoError(err)
+	for _, e := range entries {
+		// Only ever delete leftover test directories: never files, and never
+		// anything outside the test namespace. This test resets the root to "/",
+		// so without this guard it would permanently delete real top-level folders
+		// on the account the tests run against (DeleteDirectory uses Files.Delete,
+		// not the trash, when TrashForDelete is false).
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), testDirPrefix) {
+			continue
+		}
+
+		if e.ModTime().Before(old) {
+			t.Log("Deleting old test directory:", e.Name())
+			req.NoError(driver.DeleteDirectory(e.Name()))
 		}
 	}
 }

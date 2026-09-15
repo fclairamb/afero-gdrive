@@ -4,7 +4,8 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "package-name": "afero-gdrive"
+      "package-name": "afero-gdrive",
+      "include-component-in-tag": false
     }
   }
 }

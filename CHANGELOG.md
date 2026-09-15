@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.0](https://github.com/fclairamb/afero-gdrive/compare/v0.4.0...afero-gdrive-v0.5.0) (2026-09-15)
+## [0.5.0](https://github.com/fclairamb/afero-gdrive/compare/v0.4.0...v0.5.0) (2026-09-15)
 
 Dependency maintenance release. No API changes.
 

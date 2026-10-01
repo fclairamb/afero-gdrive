@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/fclairamb/afero-gdrive/compare/v0.5.0...v0.5.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **deps:** update module google.golang.org/api to v0.299.0 ([#390](https://github.com/fclairamb/afero-gdrive/issues/390)) ([e47f63e](https://github.com/fclairamb/afero-gdrive/commit/e47f63eec522800d08f23dda5d10fc9fa4a40de9))
+* **deps:** update module google.golang.org/api to v0.300.0 ([#393](https://github.com/fclairamb/afero-gdrive/issues/393)) ([bbcad63](https://github.com/fclairamb/afero-gdrive/commit/bbcad639ba0edf70b4774bc9cd4ba027f63afbf9))
+
 ## [0.5.0](https://github.com/fclairamb/afero-gdrive/compare/v0.4.0...v0.5.0) (2026-09-15)
 
 Dependency maintenance release. No API changes.

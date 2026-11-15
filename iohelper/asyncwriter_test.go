@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"hash"
 	"io"
 	"log"
@@ -129,4 +130,23 @@ func TestWriterBuf(t *testing.T) {
 		testWriterBuf(t, buf)
 		require.Equal(t, refHash, dst.String())
 	})
+}
+
+var errTestClose = errors.New("close failed")
+
+type failingCloser struct {
+	EmptyWriter
+}
+
+func (w *failingCloser) Close() error {
+	return errTestClose
+}
+
+func TestAsyncWriterBufferCloseError(t *testing.T) {
+	buf := NewAsyncWriterBuffer(&failingCloser{}, 1024)
+
+	_, err := buf.Write([]byte("abc"))
+	require.NoError(t, err)
+
+	require.ErrorIs(t, buf.Close(), errTestClose)
 }

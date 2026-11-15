@@ -147,7 +147,5 @@ func (aw *AsyncWriterBuffer) Close() error {
 		return err
 	}
 
-	<-aw.closeErr
-
-	return nil
+	return <-aw.closeErr
 }

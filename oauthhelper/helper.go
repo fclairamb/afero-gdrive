@@ -64,6 +64,15 @@ type Auth struct {
 	// successful authentication. The token is refreshed eagerly so that rotated
 	// refresh tokens are persisted and reused across runs.
 	TokenFile string
+
+	// endpoint overrides Google's OAuth2 endpoint. It is only set by tests.
+	endpoint *oauth2.Endpoint
+}
+
+// googleEndpoint is the OAuth2 endpoint used to authorize Google Drive access.
+var googleEndpoint = oauth2.Endpoint{
+	AuthURL:  "https://accounts.google.com/o/oauth2/auth",
+	TokenURL: "https://accounts.google.com/o/oauth2/token",
 }
 
 // codeResult carries the outcome of the loopback authorization callback.
@@ -79,12 +88,14 @@ func (auth *Auth) NewHTTPClient(ctx context.Context, scopes ...string) (*http.Cl
 		scopes = []string{"https://www.googleapis.com/auth/drive"}
 	}
 
+	endpoint := googleEndpoint
+	if auth.endpoint != nil {
+		endpoint = *auth.endpoint
+	}
+
 	config := &oauth2.Config{
-		Scopes: scopes,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://accounts.google.com/o/oauth2/auth",
-			TokenURL: "https://accounts.google.com/o/oauth2/token",
-		},
+		Scopes:       scopes,
+		Endpoint:     endpoint,
 		ClientID:     auth.ClientID,
 		ClientSecret: auth.ClientSecret,
 	}
@@ -128,14 +139,17 @@ func (auth *Auth) getTokenFromWeb(ctx context.Context, config *oauth2.Config) (*
 		return auth.getTokenViaLocalServer(ctx, config)
 	}
 
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	// PKCE binds the authorization code to this request: a code obtained through
+	// another authorization request can't be exchanged with this verifier.
+	verifier := oauth2.GenerateVerifier()
+	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
 
 	code, err := auth.Authenticate(authURL)
 	if err != nil {
 		return nil, fmt.Errorf("authenticate error: %w", err)
 	}
 
-	tok, err := config.Exchange(ctx, code)
+	tok, err := config.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve token from web: %w", err)
 	}
@@ -162,7 +176,10 @@ func (auth *Auth) getTokenViaLocalServer(ctx context.Context, config *oauth2.Con
 		return nil, err
 	}
 
-	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	// PKCE binds the authorization code to this request: someone who learns the
+	// state and the redirect URI can't inject a code from their own consent flow.
+	verifier := oauth2.GenerateVerifier()
+	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
 
 	if err = auth.presentURL(authURL); err != nil {
 		_ = listener.Close()
@@ -175,7 +192,7 @@ func (auth *Auth) getTokenViaLocalServer(ctx context.Context, config *oauth2.Con
 		return nil, err
 	}
 
-	token, err := config.Exchange(ctx, code)
+	token, err := config.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve token from web: %w", err)
 	}
